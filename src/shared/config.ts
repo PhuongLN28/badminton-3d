@@ -180,3 +180,135 @@ export const PLAYER_RACKET_MARKER_OFFSET = { x: 0.34, y: 1.15, z: 0.16 } as cons
 
 /** Hex color of the placeholder racket block. */
 export const PLAYER_RACKET_COLOR = 0xfef08a;
+
+/** Gravitational acceleration acting on the shuttle (m/s^2), per GAME_SPEC §4.1. */
+export const GRAVITY = 9.81;
+
+/** Shuttlecock terminal velocity in air (m/s), per GAME_SPEC §4.1. */
+export const SHUTTLE_TERMINAL_VELOCITY = 6.8;
+
+/** Characteristic aerodynamic decay length L = VT^2 / g (m), per GAME_SPEC §4.1. */
+export const SHUTTLE_CHAR_LENGTH =
+  (SHUTTLE_TERMINAL_VELOCITY * SHUTTLE_TERMINAL_VELOCITY) / GRAVITY;
+
+/** Maximum allowed shuttle speed clamp (m/s) for safety and anti-NaN, per GAME_SPEC §4.1. */
+export const SHUTTLE_MAX_SPEED = 120;
+
+/** Maximum absolute coordinate clamp for shuttle position (m) to prevent float overflow. */
+export const SHUTTLE_MAX_POS_COORD = 1_000_000_000;
+
+/** Minimum shuttle speed required to update nose orientation (m/s), per GAME_SPEC §4.1. */
+export const SHUTTLE_MIN_SPEED_FOR_ORIENT = 0.05;
+
+/** Exponential slerp rate for aligning shuttle cork nose with velocity (1/s), per GAME_SPEC §4.5. */
+export const SHUTTLE_ORIENT_RATE = 40;
+
+/** Horizontal separation offset applied after a net collision (m), per GAME_SPEC §4.4. */
+export const NET_BOUNCE_OFFSET_X = 0.02;
+
+/** Horizontal restitution factor on net collision (dimensionless), per GAME_SPEC §4.4. */
+export const NET_BOUNCE_RESTITUTION_X = 0.15;
+
+/** Downward vertical velocity damping factor on net collision (dimensionless), per GAME_SPEC §4.4. */
+export const NET_BOUNCE_DAMPING_Y = 0.5;
+
+/** Lateral velocity damping factor on net collision (dimensionless), per GAME_SPEC §4.4. */
+export const NET_BOUNCE_DAMPING_Z = 0.3;
+
+/** Whether net cord roll-over randomness is enabled (disabled for MVP), per GAME_SPEC §4.4. */
+export const NET_CORD_ENABLED = false;
+
+/** Default maximum simulated flight duration before stopping (s). */
+export const FLIGHT_DEFAULT_MAX_TIME_S = 10.0;
+
+/** Temporary Phase 2 flag enabling automatic player-box shuttle bounce-back, per ROADMAP Phase 2. */
+export const DEBUG_AUTO_RETURN = true;
+
+/** Launch speed for temporary Phase 2 player-box auto-return (m/s), per ROADMAP Phase 2. */
+export const DEBUG_AUTO_RETURN_SPEED = 30.0;
+
+/** Launch elevation angle for temporary Phase 2 player-box auto-return (deg), per ROADMAP Phase 2. */
+export const DEBUG_AUTO_RETURN_ANGLE_DEG = 50.0;
+
+/** Horizontal launch speed component for Phase 2 player-box auto-return (m/s). */
+export const DEBUG_AUTO_RETURN_VX =
+  DEBUG_AUTO_RETURN_SPEED * Math.cos((DEBUG_AUTO_RETURN_ANGLE_DEG * Math.PI) / 180);
+
+/** Vertical launch speed component for Phase 2 player-box auto-return (m/s). */
+export const DEBUG_AUTO_RETURN_VY =
+  DEBUG_AUTO_RETURN_SPEED * Math.sin((DEBUG_AUTO_RETURN_ANGLE_DEG * Math.PI) / 180);
+
+/** Visual magnification factor for rendered shuttlecock mesh (dimensionless), per GAME_SPEC §10.3. */
+export const SHUTTLE_VISUAL_SCALE = 2.5;
+
+/** Unscaled cork hemisphere radius of the shuttlecock (m), per GAME_SPEC §10.3. */
+export const SHUTTLE_CORK_RADIUS = 0.013;
+
+/** Unscaled inner skirt radius at cork base (m), per GAME_SPEC §10.3. */
+export const SHUTTLE_SKIRT_RADIUS_INNER = 0.013;
+
+/** Unscaled outer skirt radius at feather tips (m), per GAME_SPEC §10.3. */
+export const SHUTTLE_SKIRT_RADIUS_OUTER = 0.032;
+
+/** Unscaled feather skirt length along -Y local axis (m), per GAME_SPEC §10.3. */
+export const SHUTTLE_SKIRT_LENGTH = 0.065;
+
+/** Radial segment count for the shuttlecock skirt geometry, per GAME_SPEC §10.3. */
+export const SHUTTLE_SKIRT_SEGMENTS = 16;
+
+/** Warm ivory hex color for the shuttlecock cork base. */
+export const SHUTTLE_CORK_COLOR = 0xfff8e7;
+
+/** Accent band hex color around the cork-skirt collar. */
+export const SHUTTLE_BAND_COLOR = 0x1d4ed8;
+
+/** Base radius of the ground blob shadow directly beneath the shuttle (m). */
+export const SHUTTLE_BLOB_SHADOW_RADIUS = 0.18;
+
+/** Shuttle height at which the ground blob shadow fades to minimum opacity (m). */
+export const SHUTTLE_BLOB_SHADOW_MAX_HEIGHT = 9.0;
+
+/** Maximum blob shadow opacity when the shuttle is near floor level (dimensionless). */
+export const SHUTTLE_BLOB_SHADOW_MAX_OPACITY = 0.55;
+
+/** Minimum blob shadow opacity at high altitude (dimensionless). */
+export const SHUTTLE_BLOB_SHADOW_MIN_OPACITY = 0.12;
+
+/** Duration of the trailing flight ribbon behind the shuttle (s), per GAME_SPEC §10.3. */
+export const SHUTTLE_TRAIL_DURATION_S = 0.3;
+
+/** Time interval between debug trajectory sample dots (s), per GAME_SPEC §10.3. */
+export const SHUTTLE_DEBUG_DOT_INTERVAL_S = 0.1;
+
+/** Inner radius of the floor landing marker ring (m). */
+export const LANDING_MARKER_INNER_RADIUS = 0.14;
+
+/** Outer radius of the floor landing marker ring (m). */
+export const LANDING_MARKER_OUTER_RADIUS = 0.22;
+
+/** Floor landing marker hex color when the landing point is IN bounds. */
+export const LANDING_MARKER_IN_COLOR = 0x22c55e;
+
+/** Floor landing marker hex color when the landing point is OUT of bounds. */
+export const LANDING_MARKER_OUT_COLOR = 0xef4444;
+
+/** Shuttle height weight used for dynamic side-camera look-at Y (dimensionless), per GAME_SPEC §10.5. */
+export const CAMERA_LOOK_Y_SHUTTLE_FACTOR = 0.6;
+
+/** Maximum vertical look-at target height for the dynamic side camera (m), per GAME_SPEC §10.5. */
+export const CAMERA_LOOK_Y_MAX = 4.5;
+
+/** Shuttle height threshold above which the camera pulls back along Z (m), per GAME_SPEC §10.5. */
+export const CAMERA_HIGH_SHUTTLE_Y = 6.0;
+
+/** Pulled-back camera Z distance when shuttle exceeds high-altitude threshold (m), per GAME_SPEC §10.5. */
+export const CAMERA_HIGH_SHUTTLE_Z = 18.0;
+
+/** Exponential damping rate for smooth dynamic camera motion (1/s), per GAME_SPEC §10.5. */
+export const CAMERA_DAMPING_RATE = 8.0;
+
+/** Local offset from shuttle position for the debug close-up inspection camera (m). */
+export const CAMERA_CLOSEUP_OFFSET = { x: 0, y: 0.25, z: 2.2 } as const;
+
+/** Maximum number of recent SimEvents retained in ring/rolling buffer for test hooks. */
+export const MAX_STORED_EVENTS = 512;
