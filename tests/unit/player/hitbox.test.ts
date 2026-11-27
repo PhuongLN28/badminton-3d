@@ -238,7 +238,8 @@ describe('Hitbox và phát hiện chạm cầu', () => {
       detectSwingHit(p2Back, makeActiveSwing('mid'), vec3(0.1, 1.7, 0), vec3(0.1, 1.1, 0), vec3()),
     ).not.toBeNull();
 
-    // Cầu bay từ sân đối phương vào hitbox: chỉ tính khi điểm vào đã ở phía mình.
+    // Cầu bay từ sân đối phương sang sân mình: phần đoạn ở phía x < 0 vẫn đánh được (GAME_SPEC §5.2),
+    // điểm chạm là điểm cắt lưới x = 0 nếu điểm đó đã nằm trong hình cầu hitbox.
     const crossing = createPlayerState(0, -0.35);
     const crossContact = vec3();
     const crossFraction = detectSwingHit(
@@ -248,7 +249,132 @@ describe('Hitbox và phát hiện chạm cầu', () => {
       vec3(-0.25, 1.4, 0),
       crossContact,
     );
-    // Điểm vào hình cầu ở x = 0.60 (> 0) nên bị loại, dù đầu mút cuối ở phía x < 0.
-    expect(crossFraction).toBeNull();
+    // Điểm vào hình cầu ở x = 0.60 (> 0) không tính; điểm (0, 1.4) cách tâm 0.10 < 0.5 nên chạm tại x = 0.
+    // (Hành vi cũ trả null cho ca này; đổi theo GAME_SPEC §5.2, người dùng đã duyệt.)
+    expect(crossFraction).not.toBeNull();
+    expect(crossFraction as number).toBeCloseTo(0.8 / 1.05, 12);
+    expect(crossContact.x).toBeCloseTo(0, 9);
+    expect(crossContact.y).toBeCloseTo(1.4, 12);
+    expect(crossContact.x * crossing.facing).toBeLessThanOrEqual(0);
+
+    // Ca của Reviewer: P1 ở x = -0.35, vung mid ACTIVE (tâm (0.10, 1.40), r = 0.5). Đoạn (0.05, 1.75) -> (-0.45, 1.75):
+    // điểm (0, 1.75) cách tâm 0.364 < 0.5 nên đánh được ngay tại điểm cắt lưới (fraction 0.1).
+    const mid = hitboxRadius('mid');
+    const reviewerCenter = hitboxCenterOut(crossing, 'mid', vec3());
+    expect(distance(vec3(0, 1.75, 0), reviewerCenter)).toBeLessThan(mid);
+    const reviewerContact = vec3();
+    const reviewerFraction = detectSwingHit(
+      crossing,
+      makeActiveSwing('mid'),
+      vec3(0.05, 1.75, 0),
+      vec3(-0.45, 1.75, 0),
+      reviewerContact,
+    );
+    expect(reviewerFraction).not.toBeNull();
+    expect(reviewerFraction as number).toBeCloseTo(0.1, 12);
+    expect(reviewerContact.x).toBeCloseTo(0, 9);
+    expect(reviewerContact.y).toBeCloseTo(1.75, 12);
+    expect(reviewerContact.x * crossing.facing).toBeLessThanOrEqual(0);
+
+    // Đoạn nằm hoàn toàn ở sân mình vẫn như cũ: đầu mút đầu trong hình cầu -> fraction 0 tại đầu mút.
+    const ownSideContact = vec3();
+    expect(
+      detectSwingHit(
+        crossing,
+        makeActiveSwing('mid'),
+        vec3(-0.2, 1.6, 0),
+        vec3(-0.7, 1.6, 0),
+        ownSideContact,
+      ),
+    ).toBe(0);
+    expect(ownSideContact.x).toBeCloseTo(-0.2, 12);
+    // Tick sau cú của Reviewer (-0.45 -> -0.95): cầu đã ra khỏi hình cầu (cách tâm 0.652 > 0.5) và đi xa dần -> null.
+    expect(
+      detectSwingHit(
+        crossing,
+        makeActiveSwing('mid'),
+        vec3(-0.45, 1.75, 0),
+        vec3(-0.95, 1.75, 0),
+        vec3(),
+      ),
+    ).toBeNull();
+
+    // P2 đối xứng: x = 0.35, facing = -1, tâm mid (-0.10, 1.40). Đoạn (-0.05, 1.75) -> (0.45, 1.75).
+    const p2Crossing = createPlayerState(1, 0.35);
+    const p2Contact = vec3();
+    const p2Fraction = detectSwingHit(
+      p2Crossing,
+      makeActiveSwing('mid'),
+      vec3(-0.05, 1.75, 0),
+      vec3(0.45, 1.75, 0),
+      p2Contact,
+    );
+    expect(p2Fraction).not.toBeNull();
+    expect(p2Fraction as number).toBeCloseTo(0.1, 12);
+    expect(p2Contact.x).toBeCloseTo(0, 9);
+    expect(p2Contact.x * p2Crossing.facing).toBeLessThanOrEqual(0);
+
+    // Cả hai đầu mút ở sân đối phương: không đánh được, outContact giữ nguyên.
+    const farContact = vec3(5, 5, 5);
+    expect(
+      detectSwingHit(
+        crossing,
+        makeActiveSwing('mid'),
+        vec3(0.9, 1.4, 0),
+        vec3(0.2, 1.4, 0),
+        farContact,
+      ),
+    ).toBeNull();
+    expect(farContact).toEqual({ x: 5, y: 5, z: 5 });
+    const p2FarContact = vec3(5, 5, 5);
+    expect(
+      detectSwingHit(
+        p2Crossing,
+        makeActiveSwing('mid'),
+        vec3(-0.9, 1.4, 0),
+        vec3(-0.2, 1.4, 0),
+        p2FarContact,
+      ),
+    ).toBeNull();
+    expect(p2FarContact).toEqual({ x: 5, y: 5, z: 5 });
+
+    // Cầu ~60 m/s (0.47 m/tick) qua lưới, cả hai đầu mút nằm ngoài hình cầu: dây cung của y = 1.85 chạy từ
+    // x = -0.118 đến 0.318 nên điểm vào ở x > 0 (cách cũ loại cả đoạn và bỏ sót hẳn cú đánh). Điểm cắt lưới
+    // (0, 1.85) cách tâm 0.461 < 0.5 nên nay vẫn đánh được tại x = 0.
+    const fast = createShuttleState();
+    spawnShuttleState(fast, vec3(0.34, 1.85, 0), vec3(-60, 0, 0));
+    const fastPrev = vec3(fast.pos.x, fast.pos.y, fast.pos.z);
+    stepShuttle(fast, DT, DEFAULT_PHYSICS_CONFIG, createShuttleScratch(), 1);
+    const fastCurr = vec3(fast.pos.x, fast.pos.y, fast.pos.z);
+    expect(fastPrev.x - fastCurr.x).toBeGreaterThan(0.4);
+    expect(fastPrev.x).toBeGreaterThan(0);
+    expect(fastCurr.x).toBeLessThan(0);
+    expect(distance(fastPrev, reviewerCenter)).toBeGreaterThan(mid);
+    expect(distance(fastCurr, reviewerCenter)).toBeGreaterThan(mid);
+    expect(sweptSphereEntry(fastPrev, fastCurr, reviewerCenter, mid)).not.toBeNull(); // đoạn có chạm cầu
+    const fastContact = vec3();
+    const fastFraction = detectSwingHit(
+      crossing,
+      makeActiveSwing('mid'),
+      fastPrev,
+      fastCurr,
+      fastContact,
+    );
+    expect(fastFraction).not.toBeNull();
+    expect(fastFraction as number).toBeCloseTo(fastPrev.x / (fastPrev.x - fastCurr.x), 12);
+    expect(fastContact.x).toBeCloseTo(0, 9);
+    expect(fastContact.x * crossing.facing).toBeLessThanOrEqual(0);
+    expect(distance(fastContact, reviewerCenter)).toBeLessThanOrEqual(mid);
+
+    // Điểm cắt lưới nằm ngoài hình cầu và phần còn lại cũng không chạm: vẫn là null.
+    expect(
+      detectSwingHit(
+        crossing,
+        makeActiveSwing('mid'),
+        vec3(0.2, 2.3, 0),
+        vec3(-0.25, 2.3, 0),
+        vec3(),
+      ),
+    ).toBeNull();
   });
 });

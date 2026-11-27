@@ -24,6 +24,9 @@ type HitboxPlayer = Readonly<Pick<PlayerState, 'x' | 'y' | 'z' | 'facing'>>;
 /** Hitbox center scratch reused by `detectSwingHit` so it never allocates. */
 const centerScratch: Vec3 = { x: 0, y: 0, z: 0 };
 
+/** Net-plane crossing point scratch (start of the own-side sub-segment) reused by `detectSwingHit`. */
+const netCrossScratch: Vec3 = { x: 0, y: 0, z: 0 };
+
 function hitboxSpecFor(kind: HitKind): Readonly<HitboxSpec> {
   if (kind === 'overhead') {
     return HITBOX_OVERHEAD;
@@ -155,17 +158,21 @@ export function sweptSphereEntry(
 
 /**
  * Detect a racket hit for one tick: the swing must be ACTIVE, not yet have hit, own a hitbox kind
- * (not `serve`), and the shuttle segment `prevPos -> currPos` must enter the hitbox sphere at a
- * point on the player's own half (`contact.x * facing <= 0`). The caller sets `swing.hasHit`.
+ * (not `serve`), and the part of the shuttle segment `prevPos -> currPos` that lies on the player's
+ * own half (`x * facing <= 0`, GAME_SPEC §5.2) must reach the hitbox sphere. A segment that starts on
+ * the opponent half and crosses the net is tested from the net-plane crossing (x = 0) onward, so a
+ * fast shuttle that is already inside the sphere at the net is hit at x = 0 instead of being missed.
+ * The caller sets `swing.hasHit`.
  *
  * Contact time since the ACTIVE span began is `(activeElapsedTicks + fraction) * dtS` (s), where the
- * returned fraction is the sub-tick position of the contact inside this tick's shuttle step.
+ * returned fraction is the sub-tick position of the contact inside this tick's shuttle step
+ * (measured from `prevPos`, also for a net-crossing segment).
  * No allocation; `outContact` is left untouched when the result is `null`.
  *
  * @param player Swinging player (feet position in m, facing).
  * @param prevPos Shuttle position before this tick's step (m).
  * @param currPos Shuttle position after this tick's step (m).
- * @param outContact Receives the contact point (m).
+ * @param outContact Receives the contact point (m); always on the player's own half.
  * @returns Entry fraction in [0, 1] of the shuttle step, or `null` for no hit.
  */
 export function detectSwingHit(
@@ -180,16 +187,40 @@ export function detectSwingHit(
     return null;
   }
   hitboxCenterOut(player, kind, centerScratch);
-  const fraction = sweptSphereEntry(prevPos, currPos, centerScratch, hitboxRadius(kind));
-  if (fraction === null) {
+  const radiusM = hitboxRadius(kind);
+  const facing = player.facing;
+
+  if (prevPos.x * facing <= 0) {
+    // Starts on the own half: the entry point must itself be on the own half.
+    const fraction = sweptSphereEntry(prevPos, currPos, centerScratch, radiusM);
+    if (fraction === null) {
+      return null;
+    }
+    const cx = prevPos.x + (currPos.x - prevPos.x) * fraction;
+    if (cx * facing > 0) {
+      return null;
+    }
+    outContact.x = cx;
+    outContact.y = prevPos.y + (currPos.y - prevPos.y) * fraction;
+    outContact.z = prevPos.z + (currPos.z - prevPos.z) * fraction;
+    return fraction;
+  }
+  if (currPos.x * facing > 0) {
+    // Both ends on the opponent half: nothing to hit.
     return null;
   }
-  const cx = prevPos.x + (currPos.x - prevPos.x) * fraction;
-  if (cx * player.facing > 0) {
+
+  // Crosses the net plane from the opponent half: test only the own-half part, net crossing -> currPos.
+  const fNet = prevPos.x / (prevPos.x - currPos.x);
+  netCrossScratch.x = 0;
+  netCrossScratch.y = prevPos.y + (currPos.y - prevPos.y) * fNet;
+  netCrossScratch.z = prevPos.z + (currPos.z - prevPos.z) * fNet;
+  const t = sweptSphereEntry(netCrossScratch, currPos, centerScratch, radiusM);
+  if (t === null) {
     return null;
   }
-  outContact.x = cx;
-  outContact.y = prevPos.y + (currPos.y - prevPos.y) * fraction;
-  outContact.z = prevPos.z + (currPos.z - prevPos.z) * fraction;
-  return fraction;
+  outContact.x = (currPos.x - netCrossScratch.x) * t;
+  outContact.y = netCrossScratch.y + (currPos.y - netCrossScratch.y) * t;
+  outContact.z = netCrossScratch.z + (currPos.z - netCrossScratch.z) * t;
+  return fNet + t * (1 - fNet);
 }
