@@ -359,6 +359,13 @@ export const HITBOX_MID: HitboxSpec = { offsetX: 0.45, offsetY: 1.4, radius: 0.5
 /** Underhand hitbox relative to the feet: forward offset, center height, radius (m), per GAME_SPEC §5.2. */
 export const HITBOX_UNDERHAND: HitboxSpec = { offsetX: 0.5, offsetY: 0.6, radius: 0.55 };
 
+/**
+ * Distance a racket contact on the net plane is pushed into the hitter's own court (m).
+ * A contact at exactly x = 0 would make the shot solver see no net crossing (its probes need the start strictly
+ * on the own side), so the contact is moved this far inside; the deviation is at most this value.
+ */
+export const HIT_NET_CONTACT_INSET_M = 0.001;
+
 /** Forward offset of the held shuttle from the server feet along facing (m), per GAME_SPEC §5.2 and §7.3. */
 export const SERVE_CONTACT_OFFSET_X = 0.35;
 

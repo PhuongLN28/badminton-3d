@@ -4,6 +4,7 @@ import {
   HITBOX_MID,
   HITBOX_OVERHEAD,
   HITBOX_UNDERHAND,
+  HIT_NET_CONTACT_INSET_M,
   SWING_FALLBACK_KIND,
 } from '@shared/config';
 import { vec3 } from '@shared/math/vec3';
@@ -15,7 +16,9 @@ import {
   stepShuttle,
   type ShuttleState,
 } from '@shared/physics/shuttle';
-import type { Vec3 } from '@shared/types';
+import type { ShotType, Vec3 } from '@shared/types';
+import { solveShot } from '../../../src/shared/shots/shotSolver';
+import { getShotParams } from '../../../src/shared/shots/shotTypes';
 import {
   classifySwingKind,
   detectSwingHit,
@@ -239,7 +242,7 @@ describe('Hitbox và phát hiện chạm cầu', () => {
     ).not.toBeNull();
 
     // Cầu bay từ sân đối phương sang sân mình: phần đoạn ở phía x < 0 vẫn đánh được (GAME_SPEC §5.2),
-    // điểm chạm là điểm cắt lưới x = 0 nếu điểm đó đã nằm trong hình cầu hitbox.
+    // điểm chạm là điểm cắt lưới x = 0 nếu điểm đó đã nằm trong hình cầu hitbox, đẩy 1 mm vào sân mình (HIT_NET_CONTACT_INSET_M).
     const crossing = createPlayerState(0, -0.35);
     const crossContact = vec3();
     const crossFraction = detectSwingHit(
@@ -249,11 +252,11 @@ describe('Hitbox và phát hiện chạm cầu', () => {
       vec3(-0.25, 1.4, 0),
       crossContact,
     );
-    // Điểm vào hình cầu ở x = 0.60 (> 0) không tính; điểm (0, 1.4) cách tâm 0.10 < 0.5 nên chạm tại x = 0.
+    // Điểm vào hình cầu ở x = 0.60 (> 0) không tính; điểm (0, 1.4) cách tâm 0.10 < 0.5 nên chạm ở sát lưới, x = -facing·0.001.
     // (Hành vi cũ trả null cho ca này; đổi theo GAME_SPEC §5.2, người dùng đã duyệt.)
     expect(crossFraction).not.toBeNull();
     expect(crossFraction as number).toBeCloseTo(0.8 / 1.05, 12);
-    expect(crossContact.x).toBeCloseTo(0, 9);
+    expect(crossContact.x).toBeCloseTo(-crossing.facing * HIT_NET_CONTACT_INSET_M, 12);
     expect(crossContact.y).toBeCloseTo(1.4, 12);
     expect(crossContact.x * crossing.facing).toBeLessThanOrEqual(0);
 
@@ -272,7 +275,7 @@ describe('Hitbox và phát hiện chạm cầu', () => {
     );
     expect(reviewerFraction).not.toBeNull();
     expect(reviewerFraction as number).toBeCloseTo(0.1, 12);
-    expect(reviewerContact.x).toBeCloseTo(0, 9);
+    expect(reviewerContact.x).toBeCloseTo(-crossing.facing * HIT_NET_CONTACT_INSET_M, 12);
     expect(reviewerContact.y).toBeCloseTo(1.75, 12);
     expect(reviewerContact.x * crossing.facing).toBeLessThanOrEqual(0);
 
@@ -311,8 +314,39 @@ describe('Hitbox và phát hiện chạm cầu', () => {
     );
     expect(p2Fraction).not.toBeNull();
     expect(p2Fraction as number).toBeCloseTo(0.1, 12);
-    expect(p2Contact.x).toBeCloseTo(0, 9);
+    expect(p2Contact.x).toBeCloseTo(-p2Crossing.facing * HIT_NET_CONTACT_INSET_M, 12);
     expect(p2Contact.x * p2Crossing.facing).toBeLessThanOrEqual(0);
+
+    // Điểm chạm sát mặt phẳng lưới phải đủ sâu vào sân mình để bộ giải thấy cầu cắt lưới: solveShot từ đúng các
+    // điểm chạm vừa nhận (P1 và P2, assist bật). CLEAR, DRIVE, LIFT, DROP, SMASH phải giải được và có netCross.
+    // BLOCK và NET_SHOT (TWO_POINT) có giới hạn góc sẵn có khi contact cao hơn mép lưới: chỉ đòi netCross và v0 hữu hạn.
+    const netContacts: ReadonlyArray<readonly [1 | -1, Vec3]> = [
+      [crossing.facing, reviewerContact],
+      [p2Crossing.facing, p2Contact],
+    ];
+    const solvedShots: ShotType[] = ['CLEAR', 'DRIVE', 'LIFT', 'DROP', 'SMASH'];
+    const twoPointShots: ShotType[] = ['BLOCK', 'NET_SHOT'];
+    for (const [facing, contactPoint] of netContacts) {
+      expect(contactPoint.x * facing).toBeLessThan(0);
+      for (const shot of [...solvedShots, ...twoPointShots]) {
+        const params = getShotParams(shot);
+        const solution = solveShot({
+          shot,
+          contact: contactPoint,
+          facing,
+          targetDepth: params.defaultDepth,
+          params,
+          assist: true,
+        });
+        const label = `${shot} facing ${facing}`;
+        expect(solution.flight.netCross, label).not.toBeNull();
+        expect(Number.isFinite(solution.v0.x), label).toBe(true);
+        expect(Number.isFinite(solution.v0.y), label).toBe(true);
+        if (solvedShots.includes(shot)) {
+          expect(solution.solved, label).toBe(true);
+        }
+      }
+    }
 
     // Cả hai đầu mút ở sân đối phương: không đánh được, outContact giữ nguyên.
     const farContact = vec3(5, 5, 5);
@@ -340,7 +374,7 @@ describe('Hitbox và phát hiện chạm cầu', () => {
 
     // Cầu ~60 m/s (0.47 m/tick) qua lưới, cả hai đầu mút nằm ngoài hình cầu: dây cung của y = 1.85 chạy từ
     // x = -0.118 đến 0.318 nên điểm vào ở x > 0 (cách cũ loại cả đoạn và bỏ sót hẳn cú đánh). Điểm cắt lưới
-    // (0, 1.85) cách tâm 0.461 < 0.5 nên nay vẫn đánh được tại x = 0.
+    // (0, 1.85) cách tâm 0.461 < 0.5 nên nay vẫn đánh được, tại x = -facing·0.001.
     const fast = createShuttleState();
     spawnShuttleState(fast, vec3(0.34, 1.85, 0), vec3(-60, 0, 0));
     const fastPrev = vec3(fast.pos.x, fast.pos.y, fast.pos.z);
@@ -362,7 +396,7 @@ describe('Hitbox và phát hiện chạm cầu', () => {
     );
     expect(fastFraction).not.toBeNull();
     expect(fastFraction as number).toBeCloseTo(fastPrev.x / (fastPrev.x - fastCurr.x), 12);
-    expect(fastContact.x).toBeCloseTo(0, 9);
+    expect(fastContact.x).toBeCloseTo(-crossing.facing * HIT_NET_CONTACT_INSET_M, 12);
     expect(fastContact.x * crossing.facing).toBeLessThanOrEqual(0);
     expect(distance(fastContact, reviewerCenter)).toBeLessThanOrEqual(mid);
 

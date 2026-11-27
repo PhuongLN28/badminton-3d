@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DT, KMH_PER_MS, SMASH_MIN_CONTACT_Y } from '@shared/config';
 import {
   createRallyState,
+  setRallyPlayerX,
   spawnRallyShuttle,
   stepRally,
   type RallyState,
@@ -67,6 +68,63 @@ function collectHits(events: readonly SimEvent[], into: HitEvent[]): void {
       into.push(ev);
     }
   }
+}
+
+/** P1 stands at the nearest legal spot to the net, so its mid hitbox center sits at x = +0.10 (m). */
+const P1_NEAR_NET_X = -0.35;
+/** Start of the slow net-shot-like shuttle on the opponent half, above the net top (m). */
+const NET_PASS_START: Vec3 = { x: 0.9, y: 2.1, z: 0 };
+/** Velocity of that shuttle: about 1 cm per tick toward P1 (m/s). */
+const NET_PASS_VELOCITY: Vec3 = { x: -3, y: 0, z: 0 };
+/** Safety cap of the slow net-pass scenario (ticks). */
+const NET_PASS_MAX_TICKS = 600;
+/** P1 presses `soft`, P2 idles. */
+const SOFT_P1: readonly [InputFrame, InputFrame] = [
+  { moveX: 0, jump: false, swing: 'soft', aim: 0 },
+  IDLE,
+];
+
+/**
+ * Slow shuttle crossing the net into the mid hitbox of P1 standing at the net margin. A dry run finds the
+ * call at which the shuttle crosses x = 0, then P1 presses `soft` so the ACTIVE span centers on that call.
+ * The shuttle clears the net top, so only the racket decides what happens.
+ */
+function runSlowNetPass(): {
+  crossCall: number;
+  hits: HitEvent[];
+  nets: SimEvent[];
+  land: Extract<SimEvent, { type: 'land' }> | null;
+} {
+  const dry = createRallyState(1);
+  setRallyPlayerX(dry, 0, P1_NEAR_NET_X);
+  spawnRallyShuttle(dry, NET_PASS_START, NET_PASS_VELOCITY);
+  let crossCall = 0;
+  for (let call = 1; call <= NET_PASS_MAX_TICKS && crossCall === 0; call += 1) {
+    stepRally(dry, IDLE_PAIR);
+    if (dry.shuttle.pos.x <= 0) {
+      crossCall = call;
+    }
+  }
+  expect(crossCall).toBeGreaterThan(PRESS_LEAD_TICKS);
+
+  const s = createRallyState(1);
+  setRallyPlayerX(s, 0, P1_NEAR_NET_X);
+  spawnRallyShuttle(s, NET_PASS_START, NET_PASS_VELOCITY);
+  const hits: HitEvent[] = [];
+  const nets: SimEvent[] = [];
+  let land: Extract<SimEvent, { type: 'land' }> | null = null;
+  for (let call = 1; call <= NET_PASS_MAX_TICKS && land === null; call += 1) {
+    const events = stepRally(s, call === crossCall - PRESS_LEAD_TICKS ? SOFT_P1 : IDLE_PAIR);
+    collectHits(events, hits);
+    for (const ev of events) {
+      if (ev.type === 'netHit') {
+        nets.push(ev);
+      } else if (ev.type === 'land') {
+        land = ev;
+      }
+    }
+  }
+  return { crossCall, hits, nets, land };
 }
 
 /** Put the shuttle at rest at `p` while keeping every double-hit lock untouched. */
@@ -156,6 +214,25 @@ describe('rallySim swing and hit flow', () => {
     }
     expect(insideAnyTick).toBeGreaterThanOrEqual(1);
     expect(cHits).toHaveLength(0);
+
+    // D: slow shuttle (~1 cm per tick) crosses the net into the mid hitbox of P1 at x = -0.35. The hit happens at
+    // the crossing tick, on the own half (never at x = 0 exactly, the solver needs a strict net crossing), and
+    // the return flies over the net to the P2 half.
+    const d = runSlowNetPass();
+    expect(d.hits).toHaveLength(1);
+    const dHit = d.hits[0] as HitEvent;
+    expect(dHit.tick).toBe(d.crossCall);
+    expect(dHit.hitter).toBe(0);
+    expect(dHit.swing).toBe('mid');
+    expect(dHit.contact.x).toBeLessThan(0);
+    expect(dHit.contact.x).toBeGreaterThan(-0.05);
+    for (const value of [dHit.v0.x, dHit.v0.y, dHit.v0.z, dHit.speedKmh]) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+    expect(dHit.v0.x).toBeGreaterThan(0);
+    expect(d.nets).toHaveLength(0);
+    expect(d.land).not.toBeNull();
+    expect((d.land as Extract<SimEvent, { type: 'land' }>).x).toBeGreaterThan(0);
   });
 
   it('P3-U16 chống chạm 2 lần: sau cú đánh của P1, cầu quay lại hitbox P1 không có hit thứ 2', () => {

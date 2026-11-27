@@ -2,6 +2,7 @@ import {
   HITBOX_MID,
   HITBOX_OVERHEAD,
   HITBOX_UNDERHAND,
+  HIT_NET_CONTACT_INSET_M,
   SWING_FALLBACK_KIND,
   SWING_MID_MIN_HEIGHT,
   SWING_OVERHEAD_MIN_HEIGHT,
@@ -156,13 +157,24 @@ export function sweptSphereEntry(
   return t >= 0 && t <= 1 ? t : null;
 }
 
+/** Push a contact on the net plane `HIT_NET_CONTACT_INSET_M` into the own half (x only), see `detectSwingHit`. */
+function insetFromNetOut(contact: Vec3, facing: number): void {
+  if (contact.x * facing > -HIT_NET_CONTACT_INSET_M) {
+    contact.x = -facing * HIT_NET_CONTACT_INSET_M;
+  }
+}
+
 /**
  * Detect a racket hit for one tick: the swing must be ACTIVE, not yet have hit, own a hitbox kind
  * (not `serve`), and the part of the shuttle segment `prevPos -> currPos` that lies on the player's
  * own half (`x * facing <= 0`, GAME_SPEC §5.2) must reach the hitbox sphere. A segment that starts on
  * the opponent half and crosses the net is tested from the net-plane crossing (x = 0) onward, so a
- * fast shuttle that is already inside the sphere at the net is hit at x = 0 instead of being missed.
+ * fast shuttle that is already inside the sphere at the net is hit there instead of being missed.
  * The caller sets `swing.hasHit`.
+ *
+ * A contact closer to the net plane than `HIT_NET_CONTACT_INSET_M` is pushed to exactly that distance
+ * inside the own half (x only; y and z and the returned fraction are unchanged). The shot solver needs a
+ * start strictly on the own side to see the net crossing, so the contact deviates by at most 1 mm.
  *
  * Contact time since the ACTIVE span began is `(activeElapsedTicks + fraction) * dtS` (s), where the
  * returned fraction is the sub-tick position of the contact inside this tick's shuttle step
@@ -172,7 +184,8 @@ export function sweptSphereEntry(
  * @param player Swinging player (feet position in m, facing).
  * @param prevPos Shuttle position before this tick's step (m).
  * @param currPos Shuttle position after this tick's step (m).
- * @param outContact Receives the contact point (m); always on the player's own half.
+ * @param outContact Receives the contact point (m); always on the player's own half, at least
+ *   `HIT_NET_CONTACT_INSET_M` away from the net plane.
  * @returns Entry fraction in [0, 1] of the shuttle step, or `null` for no hit.
  */
 export function detectSwingHit(
@@ -203,6 +216,7 @@ export function detectSwingHit(
     outContact.x = cx;
     outContact.y = prevPos.y + (currPos.y - prevPos.y) * fraction;
     outContact.z = prevPos.z + (currPos.z - prevPos.z) * fraction;
+    insetFromNetOut(outContact, facing);
     return fraction;
   }
   if (currPos.x * facing > 0) {
@@ -222,5 +236,7 @@ export function detectSwingHit(
   outContact.x = (currPos.x - netCrossScratch.x) * t;
   outContact.y = netCrossScratch.y + (currPos.y - netCrossScratch.y) * t;
   outContact.z = netCrossScratch.z + (currPos.z - netCrossScratch.z) * t;
-  return fNet + t * (1 - fNet);
+  insetFromNetOut(outContact, facing);
+  const fraction = fNet + t * (1 - fNet);
+  return fraction > 1 ? 1 : fraction;
 }
