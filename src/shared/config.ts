@@ -123,3 +123,60 @@ export const PLAYER_1_COLOR = 0x257de0;
 
 /** Player 2 primary hex color, per GAME_SPEC §10.4. */
 export const PLAYER_2_COLOR = 0xf47230;
+
+/** Initial distance of each player from the net along X (m), per GAME_SPEC §7.3. */
+export const PLAYER_INITIAL_X = 2.6;
+
+/** Ground clamp threshold for player vertical landing (m) to avoid float residue. */
+export const PLAYER_GROUND_EPSILON = 1e-9;
+
+/** Green apron border width extending outside doubles boundary lines (m). */
+export const COURT_APRON_MARGIN = 0.6;
+
+/** Vertical lift of court mat above outer stadium floor (m) to avoid z-fighting. */
+export const COURT_SURFACE_Y = 0.002;
+
+/** Court canvas texture width along X (px). */
+export const COURT_TEXTURE_WIDTH_PX = 2048;
+
+/** Court canvas texture height along Z (px). */
+export const COURT_TEXTURE_HEIGHT_PX = 1024;
+
+/** Court mat CSS hex color for CanvasTexture drawing. */
+export const COURT_MAT_COLOR_HEX = '#166534';
+
+/** Court boundary line CSS hex color for CanvasTexture drawing. */
+export const COURT_LINE_COLOR_HEX = '#ffffff';
+
+/** Radius of cylindrical net posts placed at z = ±3.05 m (m). */
+export const NET_POST_RADIUS = 0.025;
+
+/** Metallic hex color of the two net posts. */
+export const NET_POST_COLOR = 0x94a3b8;
+
+/** White top net tape hex color. */
+export const NET_TAPE_COLOR = 0xf8fafc;
+
+/** Thickness along X of the top white net tape box (m) so it stays visible from side view. */
+export const NET_TAPE_THICKNESS = 0.028;
+
+/** Height of the bottom net cord trim (m). */
+export const NET_CORD_HEIGHT = 0.016;
+
+/** Number of thin cross-ribs along Z so net body remains visible edge-on from x = 0. */
+export const NET_MESH_RIB_COUNT = 9;
+
+/** Net mesh alpha CanvasTexture width along Z (px). */
+export const NET_TEXTURE_WIDTH_PX = 1024;
+
+/** Net mesh alpha CanvasTexture height along Y (px). */
+export const NET_TEXTURE_HEIGHT_PX = 256;
+
+/** Dimensions of placeholder racket block attached to box players in Phases 1–5 (m). */
+export const PLAYER_RACKET_MARKER_SIZE = { x: 0.22, y: 0.34, z: 0.04 } as const;
+
+/** Local offset from player feet to placeholder racket center (m). */
+export const PLAYER_RACKET_MARKER_OFFSET = { x: 0.34, y: 1.15, z: 0.16 } as const;
+
+/** Hex color of the placeholder racket block. */
+export const PLAYER_RACKET_COLOR = 0xfef08a;
