@@ -53,3 +53,10 @@
 - **Quyết định**: Chọn B — cài `vite`, `@types/node`, `@eslint/js`, `typescript-eslint` ở `devDependencies` (chỉ phục vụ phát triển/build/lint, không đưa vào bundle client).
 - **Hệ quả**: `package.json` có đủ toolchain Vite + TypeScript + ESLint v9 + Vitest + Playwright.
 - **Người duyệt**: người dùng (trong chat ngày 2026-11-27).
+
+### D-010 — Dùng `THREE.PCFShadowMap` trên Three.js 0.187.0 thay cho `PCFSoftShadowMap` đã bị gỡ — 2026-11-27 — Trạng thái: Đã duyệt
+- **Bối cảnh**: Kiểm tra API thật của bản Three.js vừa cài (`0.187.0`, theo `AGENTS.md` §9) cho thấy `PCFSoftShadowMap` đã bị `@deprecated since r186` và tự động fallback kèm cảnh báo `warn('WebGLShadowMap: PCFSoftShadowMap has been removed. Using PCFShadowMap instead.')`.
+- **Phương án đã cân nhắc**: A: Giữ `PCFSoftShadowMap` (phát sinh warning runtime mỗi khi tạo renderer) / B: Dùng `THREE.PCFShadowMap` trực tiếp.
+- **Quyết định**: Chọn B — cấu hình `renderer.shadowMap.type = THREE.PCFShadowMap` trong `src/client/render/scene.ts`.
+- **Hệ quả**: Khử hoàn toàn deprecation warning từ Three.js `0.187.0` mà giữ nguyên chất lượng đổ bóng PCF.
+- **Người duyệt**: Tự động áp dụng theo luật kiểm tra phiên bản API trong `AGENTS.md` §9.
