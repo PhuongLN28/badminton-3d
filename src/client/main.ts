@@ -5,6 +5,7 @@ import {
   DEFAULT_GAME_SPEED,
   DEFAULT_RNG_SEED,
   DT,
+  MAX_FRAME_DELTA,
   MAX_STORED_EVENTS,
 } from '@shared/config';
 import { copyQuatOut, quatIdentity, slerpQuatOut } from '@shared/math/quat';
@@ -362,7 +363,7 @@ function bootstrap(): void {
       const nowMs = performance.now();
       const rawRenderDtS = lastRenderNowMs > 0 ? (nowMs - lastRenderNowMs) / 1000 : DT;
       lastRenderNowMs = nowMs;
-      const cameraDtS = stats.paused ? 1.0 : Math.min(0.1, Math.max(DT, rawRenderDtS));
+      const cameraDtS = stats.paused ? 1.0 : Math.min(MAX_FRAME_DELTA, Math.max(DT, rawRenderDtS));
       sideCamera.update(interpShuttlePos, state.currShuttle.state === 'flying', cameraDtS);
 
       arena.renderer.render(arena.scene, sideCamera.camera);
