@@ -1,0 +1,37 @@
+{
+  "name": "badminton-3d",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "tsx watch src/server/index.ts",
+    "dev:all": "concurrently \"npm:dev\" \"npm:dev:server\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --no-error-on-unmatched-pattern src tests",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "build": "tsc --noEmit && vite build",
+    "ref:physics": "python3 tools/shuttle_reference.py"
+  },
+  "dependencies": {
+    "lil-gui": "^0.21.0",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.11",
+    "@types/three": "^0.187.0",
+    "concurrently": "^10.0.7",
+    "eslint": "^10.15.0",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.74.0",
+    "vite": "^8.4.0",
+    "vitest": "^4.1.12"
+  }
+}

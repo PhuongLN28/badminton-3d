@@ -46,3 +46,10 @@
 - **Quyết định**: remote `origin` = https://github.com/PhuongLN28/badminton-3d.git, nhánh `main`. Commit xong là push ngay,
   chỉ commit khi typecheck + test xanh, tag cuối phase dạng annotated và push kèm `--follow-tags`.
 - **Hệ quả**: không force push, không sửa lịch sử đã push; muốn bỏ thay đổi thì dùng `git revert`. Agent không tự xử lý thông tin đăng nhập.
+
+### D-009 — Bổ sung 4 gói devDependencies kỹ thuật cho Vite, ESLint v9 và Node — 2026-11-27 — Trạng thái: Đã duyệt
+- **Bối cảnh**: Danh sách thư viện tại `AGENTS.md` §9 chưa liệt kê 4 gói devDependency kỹ thuật cần thiết để chạy Vite bundler, kiểm tra kiểu Node cho các file cấu hình / test kiến trúc, và cấu hình ESLint v9 flat config cho TypeScript.
+- **Phương án đã cân nhắc**: A: Cài thiếu gói kỹ thuật (lỗi build/lint) / B: Bổ sung 4 gói devDependencies chuẩn gồm `vite`, `@types/node`, `@eslint/js`, `typescript-eslint`.
+- **Quyết định**: Chọn B — cài `vite`, `@types/node`, `@eslint/js`, `typescript-eslint` ở `devDependencies` (chỉ phục vụ phát triển/build/lint, không đưa vào bundle client).
+- **Hệ quả**: `package.json` có đủ toolchain Vite + TypeScript + ESLint v9 + Vitest + Playwright.
+- **Người duyệt**: người dùng (trong chat ngày 2026-11-27).
