@@ -2,6 +2,14 @@ import type { MatchPhase } from '@shared/types';
 import type { LoopStats } from '../loop';
 import { VI } from './i18n/vi';
 
+/** Shuttle telemetry fields rendered by the debug overlay. */
+export interface DebugOverlayShuttleData {
+  x: number;
+  y: number;
+  speedMs: number;
+  state: 'idle' | 'flying' | 'grounded';
+}
+
 /** Telemetry fields rendered by the debug overlay. */
 export interface DebugOverlayData {
   tick: number;
@@ -9,6 +17,7 @@ export interface DebugOverlayData {
   stats: Readonly<LoopStats>;
   p1: { x: number; y: number };
   p2: { x: number; y: number };
+  shuttle?: DebugOverlayShuttleData | undefined;
 }
 
 /** DOM debug overlay controller toggled via `?debug=1` or `F3`. */
@@ -24,10 +33,7 @@ export interface DebugOverlay {
  * @param container Parent element to attach the overlay onto.
  * @param initialVisible Whether overlay starts visible (e.g. `?debug=1`).
  */
-export function createDebugOverlay(
-  container: HTMLElement,
-  initialVisible: boolean,
-): DebugOverlay {
+export function createDebugOverlay(container: HTMLElement, initialVisible: boolean): DebugOverlay {
   const root = document.createElement('aside');
   root.className = initialVisible ? 'debug-overlay' : 'debug-overlay debug-overlay--hidden';
   root.setAttribute('data-testid', 'debug-overlay');
@@ -44,7 +50,7 @@ export function createDebugOverlay(
   header.append(titleEl, badgeEl);
   root.appendChild(header);
 
-  const createRow = (labelText: string, testId: string): HTMLSpanElement => {
+  const createRow = (labelText: string, testId: string, initialText = '0'): HTMLSpanElement => {
     const row = document.createElement('div');
     row.className = 'debug-overlay__row';
 
@@ -55,7 +61,7 @@ export function createDebugOverlay(
     const value = document.createElement('span');
     value.className = 'debug-overlay__value';
     value.setAttribute('data-testid', testId);
-    value.textContent = '0';
+    value.textContent = initialText;
 
     row.append(label, value);
     root.appendChild(row);
@@ -69,6 +75,9 @@ export function createDebugOverlay(
   const phaseVal = createRow(VI.debug.phaseLabel, 'debug-phase');
   const p1Val = createRow(VI.debug.p1PosLabel, 'debug-p1');
   const p2Val = createRow(VI.debug.p2PosLabel, 'debug-p2');
+  const shuttlePosVal = createRow(VI.debug.shuttlePosLabel, 'debug-shuttle-pos', '—');
+  const shuttleSpeedVal = createRow(VI.debug.shuttleSpeedLabel, 'debug-shuttle-speed', '—');
+  const shuttleStateVal = createRow(VI.debug.shuttleStateLabel, 'debug-shuttle-state', '—');
 
   container.appendChild(root);
 
@@ -81,6 +90,9 @@ export function createDebugOverlay(
   let lastPhase = '';
   let lastP1 = '';
   let lastP2 = '';
+  let lastShuttlePos = '';
+  let lastShuttleSpeed = '';
+  let lastShuttleState = '';
 
   const setVisible = (nextVisible: boolean): void => {
     visible = nextVisible;
@@ -94,7 +106,7 @@ export function createDebugOverlay(
     }
   };
 
-  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keydown', onKeyDown, true);
 
   const update = (data: DebugOverlayData): void => {
     if (!visible) {
@@ -146,10 +158,31 @@ export function createDebugOverlay(
       lastP2 = nextP2;
       p2Val.textContent = nextP2;
     }
+
+    const shuttle = data.shuttle;
+    const nextShuttlePos = shuttle ? `${shuttle.x.toFixed(2)}, ${shuttle.y.toFixed(2)}` : '—';
+    if (nextShuttlePos !== lastShuttlePos) {
+      lastShuttlePos = nextShuttlePos;
+      shuttlePosVal.textContent = nextShuttlePos;
+    }
+
+    const nextShuttleSpeed = shuttle
+      ? `${shuttle.speedMs.toFixed(1)} m/s (${(shuttle.speedMs * 3.6).toFixed(0)} km/h)`
+      : '—';
+    if (nextShuttleSpeed !== lastShuttleSpeed) {
+      lastShuttleSpeed = nextShuttleSpeed;
+      shuttleSpeedVal.textContent = nextShuttleSpeed;
+    }
+
+    const nextShuttleState = shuttle ? VI.debug.shuttleStates[shuttle.state] : '—';
+    if (nextShuttleState !== lastShuttleState) {
+      lastShuttleState = nextShuttleState;
+      shuttleStateVal.textContent = nextShuttleState;
+    }
   };
 
   const dispose = (): void => {
-    window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keydown', onKeyDown, true);
     root.remove();
   };
 
