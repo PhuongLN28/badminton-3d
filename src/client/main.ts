@@ -1,106 +1,28 @@
 import './ui/styles.css';
-import {
-  COURT_HALF_LENGTH,
-  DEBUG_AUTO_RETURN,
-  DEFAULT_GAME_SPEED,
-  DEFAULT_RNG_SEED,
-  DT,
-  MAX_FRAME_DELTA,
-  MAX_STORED_EVENTS,
-} from '@shared/config';
+import { COURT_HALF_LENGTH, DEFAULT_GAME_SPEED, DT, MAX_FRAME_DELTA } from '@shared/config';
 import { copyQuatOut, quatIdentity, slerpQuatOut } from '@shared/math/quat';
 import { copyOut, length, lerpOut, vec3 } from '@shared/math/vec3';
-import { resolvePlayerBoxAutoReturn } from '@shared/physics/collision';
 import { simulateFlight } from '@shared/physics/flight';
-import { initialShuttleOrientation, shuttleOrientation } from '@shared/physics/orientation';
-import {
-  DEFAULT_PHYSICS_CONFIG,
-  copyShuttleState,
-  createShuttleScratch,
-  createShuttleState,
-  spawnShuttleState,
-  stepShuttle,
-  toShuttleSnapshot,
-  type PhysicsConfig,
-  type ShuttleScratch,
-  type ShuttleState,
-} from '@shared/physics/shuttle';
-import {
-  copyPlayerState,
-  createPlayerState,
-  stepPlayer,
-  toPlayerSnapshot,
-  type PlayerState,
-} from '@shared/player/playerSim';
-import type {
-  InputFrame,
-  PlayerIndex,
-  Quat,
-  ReadonlyVec3,
-  SimEvent,
-  TestSnapshot,
-  Vec3,
-} from '@shared/types';
+import type { PhysicsConfig, ShuttleState } from '@shared/physics/shuttle';
+import type { PlayerIndex, Quat, ReadonlyVec3, Vec3 } from '@shared/types';
 import { KeyboardInputController, attachKeyboardListeners } from './input/keyboard';
 import { GameLoop } from './loop';
 import { createSideCamera } from './render/camera';
 import { createDebugDraw } from './render/debugDraw';
+import { createHitboxDebug } from './render/hitboxDebug';
 import { createPlayerMesh } from './render/playerMesh';
 import { createArenaScene } from './render/scene';
 import { createShuttleMesh } from './render/shuttleMesh';
 import { createShuttleTrail } from './render/trail';
+import { createSimHost } from './simHost';
 import { installTestHooks } from './testHooks';
 import {
   createDebugOverlay,
   type DebugOverlayData,
   type DebugOverlayShuttleData,
 } from './ui/debugOverlay';
+import { createShotPopup } from './ui/shotPopup';
 import { createShuttleLabGui } from './ui/shuttleLabGui';
-
-interface InputOverride {
-  remainingTicks: number;
-  readonly frame: InputFrame;
-}
-
-type MutablePhysicsConfig = {
-  -readonly [K in keyof PhysicsConfig]: PhysicsConfig[K];
-};
-
-interface Phase2SimState {
-  tick: number;
-  seed: number;
-  events: SimEvent[];
-  prevPlayers: [PlayerState, PlayerState];
-  currPlayers: [PlayerState, PlayerState];
-  prevShuttle: ShuttleState;
-  currShuttle: ShuttleState;
-  shuttleScratch: ShuttleScratch;
-  physicsCfg: MutablePhysicsConfig;
-  flightElapsedS: number;
-  gameSpeed: number;
-  autoReturnEnabled: boolean;
-  overrides: [InputOverride, InputOverride];
-}
-
-function createInputOverride(): InputOverride {
-  return {
-    remainingTicks: 0,
-    frame: { moveX: 0, jump: false, swing: null, aim: 0 },
-  };
-}
-
-function resolvePlayerInput(
-  index: PlayerIndex,
-  keyboardFrames: readonly [InputFrame, InputFrame],
-  overrides: readonly [InputOverride, InputOverride],
-): Readonly<InputFrame> {
-  const override = overrides[index];
-  if (override.remainingTicks > 0) {
-    override.remainingTicks -= 1;
-    return override.frame;
-  }
-  return keyboardFrames[index];
-}
 
 function computePredictedLanding(
   shuttle: Readonly<ShuttleState>,
@@ -126,33 +48,24 @@ function bootstrap(): void {
   const params = new URLSearchParams(window.location.search);
   const debugEnabled = params.get('debug') === '1';
 
-  const state: Phase2SimState = {
-    tick: 0,
-    seed: DEFAULT_RNG_SEED,
-    events: [],
-    prevPlayers: [createPlayerState(0), createPlayerState(1)],
-    currPlayers: [createPlayerState(0), createPlayerState(1)],
-    prevShuttle: createShuttleState(),
-    currShuttle: createShuttleState(),
-    shuttleScratch: createShuttleScratch(),
-    physicsCfg: { ...DEFAULT_PHYSICS_CONFIG },
-    flightElapsedS: 0,
-    gameSpeed: DEFAULT_GAME_SPEED,
-    autoReturnEnabled: DEBUG_AUTO_RETURN,
-    overrides: [createInputOverride(), createInputOverride()],
-  };
+  const host = createSimHost();
+  const rally = host.rally;
+  const shuttle = rally.shuttle;
+  let flightElapsedS = 0;
 
   const arena = createArenaScene(container);
   const p1Mesh = createPlayerMesh(0, 1);
   const p2Mesh = createPlayerMesh(1, -1);
-  p1Mesh.setPosition(state.currPlayers[0].x, state.currPlayers[0].y, 0);
-  p2Mesh.setPosition(state.currPlayers[1].x, state.currPlayers[1].y, 0);
+  p1Mesh.setPosition(rally.players[0].x, rally.players[0].y, 0);
+  p2Mesh.setPosition(rally.players[1].x, rally.players[1].y, 0);
 
   const shuttleMesh = createShuttleMesh();
   const shuttleTrail = createShuttleTrail();
   const debugDraw = createDebugDraw();
   debugDraw.setDebugVisible(debugEnabled);
-  shuttleMesh.updateTransform(state.currShuttle.pos, state.currShuttle.quat, false);
+  const hitboxDebug = createHitboxDebug();
+  hitboxDebug.setVisible(debugEnabled);
+  shuttleMesh.updateTransform(shuttle.pos, shuttle.quat, false);
 
   arena.scene.add(
     p1Mesh.group,
@@ -161,6 +74,7 @@ function bootstrap(): void {
     shuttleMesh.shadowMesh,
     shuttleTrail.line,
     debugDraw.group,
+    hitboxDebug.group,
   );
 
   const sideCamera = createSideCamera(
@@ -168,65 +82,72 @@ function bootstrap(): void {
     container.clientHeight || window.innerHeight,
   );
   const debugOverlay = createDebugOverlay(container, debugEnabled);
+  const shotPopup = createShotPopup(container);
 
-  const pushEvent = (ev: SimEvent): void => {
-    state.events.push(ev);
-    if (state.events.length > MAX_STORED_EVENTS) {
-      state.events.shift();
-    }
+  /** Restart the trail, the debug path and the predicted landing ring from the current shuttle. */
+  const beginTrackedFlight = (startPos: ReadonlyVec3): void => {
+    flightElapsedS = 0;
+    shuttleTrail.clear();
+    shuttleTrail.recordSample(startPos, 0);
+    debugDraw.beginFlight(startPos, computePredictedLanding(shuttle, rally.physicsCfg));
+  };
+
+  /** Snap the shuttle mesh and camera to a freshly launched shuttle. */
+  const snapShuttleVisuals = (): void => {
+    beginTrackedFlight(shuttle.pos);
+    shuttleMesh.updateTransform(shuttle.pos, shuttle.quat, true);
+    sideCamera.update(shuttle.pos, true, 1.0);
   };
 
   const launchShuttle = (
     p0: ReadonlyVec3,
     v0: ReadonlyVec3,
-    cfg: Readonly<PhysicsConfig>,
+    cfg?: Readonly<Partial<PhysicsConfig>>,
   ): void => {
-    state.events.length = 0;
-    spawnShuttleState(state.currShuttle, p0, v0, cfg);
-    initialShuttleOrientation(state.currShuttle.vel, state.currShuttle.quat);
-    copyShuttleState(state.prevShuttle, state.currShuttle);
-    state.flightElapsedS = 0;
-    shuttleTrail.clear();
-    shuttleTrail.recordSample(state.currShuttle.pos, 0);
-    debugDraw.beginFlight(state.currShuttle.pos, computePredictedLanding(state.currShuttle, cfg));
-    shuttleMesh.updateTransform(state.currShuttle.pos, state.currShuttle.quat, true);
-    sideCamera.update(state.currShuttle.pos, true, 1.0);
+    host.spawnShuttle(p0, v0, cfg);
+    snapShuttleVisuals();
+  };
+
+  /** Temporary practice toss (ROADMAP Phase 3 item 8): the shuttle rises from the hand of `player`. */
+  const launchToss = (player: PlayerIndex): void => {
+    host.toss(player);
+    snapShuttleVisuals();
   };
 
   const shuttleLabGui = createShuttleLabGui(debugEnabled, {
     onLaunch: (req) => {
-      state.physicsCfg.gravityEnabled = req.gravityEnabled;
-      state.physicsCfg.dragEnabled = req.dragEnabled;
-      state.physicsCfg.collideNet = req.collideNet;
-      launchShuttle(req.p0, req.v0, state.physicsCfg);
+      launchShuttle(req.p0, req.v0, {
+        gravityEnabled: req.gravityEnabled,
+        dragEnabled: req.dragEnabled,
+        collideNet: req.collideNet,
+      });
     },
     onReverseVelocity: () => {
-      if (state.currShuttle.state !== 'flying') {
+      if (shuttle.state !== 'flying') {
         return;
       }
-      state.currShuttle.vel.x = -state.currShuttle.vel.x + 0;
-      state.currShuttle.vel.y = -state.currShuttle.vel.y + 0;
-      state.currShuttle.vel.z = -state.currShuttle.vel.z + 0;
-      state.prevShuttle.vel.x = -state.prevShuttle.vel.x + 0;
-      state.prevShuttle.vel.y = -state.prevShuttle.vel.y + 0;
-      state.prevShuttle.vel.z = -state.prevShuttle.vel.z + 0;
-      debugDraw.updatePredictedLanding(
-        computePredictedLanding(state.currShuttle, state.physicsCfg),
-      );
+      const prev = host.prevShuttle;
+      shuttle.vel.x = -shuttle.vel.x + 0;
+      shuttle.vel.y = -shuttle.vel.y + 0;
+      shuttle.vel.z = -shuttle.vel.z + 0;
+      prev.vel.x = -prev.vel.x + 0;
+      prev.vel.y = -prev.vel.y + 0;
+      prev.vel.z = -prev.vel.z + 0;
+      debugDraw.updatePredictedLanding(computePredictedLanding(shuttle, rally.physicsCfg));
     },
     onClearTrail: () => {
       shuttleTrail.clear();
       debugDraw.clearTrajectory();
     },
     onToggleAutoReturn: (enabled) => {
-      state.autoReturnEnabled = enabled;
+      rally.autoReturnEnabled = enabled;
     },
     onChangeGameSpeed: (speed) => {
-      state.gameSpeed = Number.isFinite(speed) && speed > 0 ? speed : DEFAULT_GAME_SPEED;
+      host.gameSpeed = Number.isFinite(speed) && speed > 0 ? speed : DEFAULT_GAME_SPEED;
     },
     onChangeCameraMode: (mode) => {
       sideCamera.setMode(mode);
-      sideCamera.update(state.currShuttle.pos, state.currShuttle.state === 'flying', 1.0);
+      sideCamera.update(shuttle.pos, shuttle.state === 'flying', 1.0);
     },
   });
 
@@ -241,14 +162,23 @@ function bootstrap(): void {
   };
   window.addEventListener('resize', onResize);
 
-  const onKeyDownSyncDebug = (event: KeyboardEvent): void => {
+  const onKeyDownExtras = (event: KeyboardEvent): void => {
     if (event.code === 'F3') {
       const visible = debugOverlay.isVisible();
       shuttleLabGui.setVisible(visible);
       debugDraw.setDebugVisible(visible);
+      hitboxDebug.setVisible(visible);
+    } else if (
+      event.code === 'KeyT' &&
+      !event.repeat &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      launchToss(0);
     }
   };
-  window.addEventListener('keydown', onKeyDownSyncDebug);
+  window.addEventListener('keydown', onKeyDownExtras);
 
   const interpShuttlePos: Vec3 = vec3(0, 0, 0);
   const interpShuttleQuat: Quat = quatIdentity();
@@ -267,156 +197,102 @@ function bootstrap(): void {
       alpha: 0,
       paused: false,
     },
-    p1: { x: state.currPlayers[0].x, y: state.currPlayers[0].y },
-    p2: { x: state.currPlayers[1].x, y: state.currPlayers[1].y },
+    p1: { x: rally.players[0].x, y: rally.players[0].y },
+    p2: { x: rally.players[1].x, y: rally.players[1].y },
     shuttle: hudShuttleData,
+    swings: rally.swings,
   };
   let lastRenderNowMs = 0;
 
   const loop = new GameLoop({
     onStep: (dtS = DT) => {
-      const stepDt = dtS * state.gameSpeed;
-      const keyboardFrames = keyboard.consumeFrames();
-      copyPlayerState(state.prevPlayers[0], state.currPlayers[0]);
-      copyPlayerState(state.prevPlayers[1], state.currPlayers[1]);
+      const stepDtS = dtS * host.gameSpeed;
+      const wasFlying = shuttle.state === 'flying';
+      const events = host.step(stepDtS, keyboard.consumeFrames());
 
-      const input0 = resolvePlayerInput(0, keyboardFrames, state.overrides);
-      const input1 = resolvePlayerInput(1, keyboardFrames, state.overrides);
-
-      stepPlayer(state.currPlayers[0], input0, stepDt);
-      stepPlayer(state.currPlayers[1], input1, stepDt);
-
-      copyShuttleState(state.prevShuttle, state.currShuttle);
-      if (state.currShuttle.state === 'flying') {
-        const stepRes = stepShuttle(
-          state.currShuttle,
-          stepDt,
-          state.physicsCfg,
-          state.shuttleScratch,
-          state.tick + 1,
-        );
-        if (stepRes.netHitEvent) {
-          pushEvent(stepRes.netHitEvent);
+      let flightRestarted = false;
+      let landed = false;
+      for (const ev of events) {
+        if (ev.type === 'hit') {
+          shotPopup.show(ev);
+          beginTrackedFlight(ev.contact);
+          flightRestarted = true;
+        } else if (ev.type === 'land') {
+          flightElapsedS += ev.subTickFraction * stepDtS;
+          debugDraw.markLanding(ev.x, ev.z, Math.abs(ev.x) <= COURT_HALF_LENGTH);
+          landed = true;
         }
-        if (stepRes.landEvent) {
-          state.flightElapsedS += stepRes.landEvent.subTickFraction * stepDt;
-          pushEvent(stepRes.landEvent);
-          debugDraw.markLanding(
-            stepRes.landEvent.x,
-            stepRes.landEvent.z,
-            Math.abs(stepRes.landEvent.x) <= COURT_HALF_LENGTH,
-          );
-        } else {
-          state.flightElapsedS += stepDt;
-        }
-        if (state.autoReturnEnabled && state.currShuttle.state === 'flying') {
-          const hitPlayer = resolvePlayerBoxAutoReturn(
-            state.shuttleScratch.prevPos,
-            state.currShuttle,
-            state.currPlayers,
-          );
-          if (hitPlayer !== null) {
-            debugDraw.updatePredictedLanding(
-              computePredictedLanding(state.currShuttle, state.physicsCfg),
-            );
-          }
-        }
-        shuttleOrientation(
-          state.currShuttle.quat,
-          state.currShuttle.vel,
-          stepDt,
-          state.currShuttle.quat,
-        );
-        shuttleTrail.recordSample(state.currShuttle.pos, state.flightElapsedS);
-        debugDraw.recordFlightStep(state.currShuttle.pos, state.flightElapsedS);
       }
-
-      state.tick += 1;
+      if (wasFlying && !flightRestarted) {
+        if (!landed) {
+          flightElapsedS += stepDtS;
+        }
+        shuttleTrail.recordSample(shuttle.pos, flightElapsedS);
+        debugDraw.recordFlightStep(shuttle.pos, flightElapsedS);
+      }
     },
     onRender: (alpha, stats) => {
-      const p1Prev = state.prevPlayers[0];
-      const p1Curr = state.currPlayers[0];
-      const p2Prev = state.prevPlayers[1];
-      const p2Curr = state.currPlayers[1];
+      const prevPlayers = host.prevPlayers;
+      const p1Prev = prevPlayers[0];
+      const p1Curr = rally.players[0];
+      const p2Prev = prevPlayers[1];
+      const p2Curr = rally.players[1];
 
-      const p1RenderX = p1Prev.x + (p1Curr.x - p1Prev.x) * alpha;
-      const p1RenderY = p1Prev.y + (p1Curr.y - p1Prev.y) * alpha;
-      const p2RenderX = p2Prev.x + (p2Curr.x - p2Prev.x) * alpha;
-      const p2RenderY = p2Prev.y + (p2Curr.y - p2Prev.y) * alpha;
-
-      p1Mesh.setPosition(p1RenderX, p1RenderY, 0);
-      p2Mesh.setPosition(p2RenderX, p2RenderY, 0);
-
-      if (state.currShuttle.state === 'flying') {
-        lerpOut(state.prevShuttle.pos, state.currShuttle.pos, alpha, interpShuttlePos);
-        slerpQuatOut(state.prevShuttle.quat, state.currShuttle.quat, alpha, interpShuttleQuat);
-      } else {
-        copyOut(state.currShuttle.pos, interpShuttlePos);
-        copyQuatOut(state.currShuttle.quat, interpShuttleQuat);
-      }
-      shuttleMesh.updateTransform(
-        interpShuttlePos,
-        interpShuttleQuat,
-        state.currShuttle.state !== 'idle',
+      p1Mesh.setPosition(
+        p1Prev.x + (p1Curr.x - p1Prev.x) * alpha,
+        p1Prev.y + (p1Curr.y - p1Prev.y) * alpha,
+        0,
       );
+      p2Mesh.setPosition(
+        p2Prev.x + (p2Curr.x - p2Prev.x) * alpha,
+        p2Prev.y + (p2Curr.y - p2Prev.y) * alpha,
+        0,
+      );
+
+      if (shuttle.state === 'flying') {
+        lerpOut(host.prevShuttle.pos, shuttle.pos, alpha, interpShuttlePos);
+        slerpQuatOut(host.prevShuttle.quat, shuttle.quat, alpha, interpShuttleQuat);
+      } else {
+        copyOut(shuttle.pos, interpShuttlePos);
+        copyQuatOut(shuttle.quat, interpShuttleQuat);
+      }
+      shuttleMesh.updateTransform(interpShuttlePos, interpShuttleQuat, shuttle.state !== 'idle');
 
       const nowMs = performance.now();
       const rawRenderDtS = lastRenderNowMs > 0 ? (nowMs - lastRenderNowMs) / 1000 : DT;
       lastRenderNowMs = nowMs;
       const cameraDtS = stats.paused ? 1.0 : Math.min(MAX_FRAME_DELTA, Math.max(DT, rawRenderDtS));
-      sideCamera.update(interpShuttlePos, state.currShuttle.state === 'flying', cameraDtS);
+      sideCamera.update(interpShuttlePos, shuttle.state === 'flying', cameraDtS);
+      hitboxDebug.update(rally);
+      shotPopup.update(Math.min(MAX_FRAME_DELTA, rawRenderDtS));
 
       arena.renderer.render(arena.scene, sideCamera.camera);
 
-      overlayData.tick = state.tick;
+      overlayData.tick = rally.tick;
       overlayData.stats = stats;
       overlayData.p1.x = p1Curr.x;
       overlayData.p1.y = p1Curr.y;
       overlayData.p2.x = p2Curr.x;
       overlayData.p2.y = p2Curr.y;
-      hudShuttleData.x = state.currShuttle.pos.x;
-      hudShuttleData.y = state.currShuttle.pos.y;
-      hudShuttleData.speedMs = length(state.currShuttle.vel);
-      hudShuttleData.state = state.currShuttle.state;
+      hudShuttleData.x = shuttle.pos.x;
+      hudShuttleData.y = shuttle.pos.y;
+      hudShuttleData.speedMs = length(shuttle.vel);
+      hudShuttleData.state = shuttle.state;
       debugOverlay.update(overlayData);
     },
   });
 
-  const buildSnapshot = (): TestSnapshot => ({
-    phase: 'RALLY',
-    tick: state.tick,
-    players: [toPlayerSnapshot(state.currPlayers[0]), toPlayerSnapshot(state.currPlayers[1])],
-    shuttle: toShuttleSnapshot(state.currShuttle),
-    score: {
-      points: [0, 0],
-      games: [0, 0],
-    },
-    server: 0,
-    lastEvents: [...state.events],
-  });
-
   installTestHooks({
-    getSnapshot: buildSnapshot,
-    getEvents: (sinceTick = 0) => state.events.filter((ev) => ev.tick >= sinceTick),
+    getSnapshot: () => host.snapshot(),
+    getEvents: (sinceTick) => host.getEvents(sinceTick),
     pause: () => loop.pause(),
     resume: () => loop.resume(),
     step: (ticks: number) => loop.stepManual(ticks),
-    setSeed: (seed: number) => {
-      state.seed = seed >>> 0;
-    },
-    spawnShuttle: (p, v) => {
-      state.physicsCfg = { ...DEFAULT_PHYSICS_CONFIG };
-      launchShuttle(p, v, state.physicsCfg);
-    },
-    setInput: (player, input, ticks = 1) => {
-      const target = state.overrides[player];
-      const safeTicks = Number.isFinite(ticks) && ticks > 0 ? Math.floor(ticks) : 0;
-      target.remainingTicks = safeTicks;
-      target.frame.moveX = input.moveX ?? 0;
-      target.frame.jump = input.jump ?? false;
-      target.frame.swing = input.swing ?? null;
-      target.frame.aim = input.aim ?? 0;
-    },
+    setSeed: (seed: number) => host.setSeed(seed),
+    spawnShuttle: (p, v) => launchShuttle(p, v),
+    tossShuttle: launchToss,
+    setPlayerX: (player, x) => host.setPlayerX(player, x),
+    setInput: (player, input, ticks) => host.setInput(player, input, ticks),
   });
 
   window.addEventListener(
@@ -425,9 +301,11 @@ function bootstrap(): void {
       loop.stop();
       detachKeyboard();
       window.removeEventListener('resize', onResize);
-      window.removeEventListener('keydown', onKeyDownSyncDebug);
+      window.removeEventListener('keydown', onKeyDownExtras);
       shuttleLabGui.dispose();
+      shotPopup.dispose();
       debugOverlay.dispose();
+      hitboxDebug.dispose();
       debugDraw.dispose();
       shuttleTrail.dispose();
       shuttleMesh.dispose();

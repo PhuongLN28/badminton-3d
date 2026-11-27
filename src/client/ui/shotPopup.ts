@@ -1,4 +1,4 @@
-import { SHOT_POPUP_DURATION_S } from '@shared/config';
+import { SHOT_POPUP_DURATION_S, SHOT_POPUP_FADE_OUT_S } from '@shared/config';
 import type { SimEvent } from '@shared/types';
 import { VI } from './i18n/vi';
 
@@ -17,9 +17,6 @@ export interface ShotPopup {
   /** Remove the popup element. */
   dispose(): void;
 }
-
-/** Length of the CSS fade-out at the end of the popup life (s); keep equal to the stylesheet. */
-const FADE_OUT_S = 0.25;
 
 const CLASS_BASE = 'shot-popup';
 const CLASS_VISIBLE = 'shot-popup--visible';
@@ -99,7 +96,7 @@ export function createShotPopup(parent: HTMLElement): ShotPopup {
       hide();
       return;
     }
-    if (!leaving && remainingS <= FADE_OUT_S) {
+    if (!leaving && remainingS <= SHOT_POPUP_FADE_OUT_S) {
       leaving = true;
       root.classList.add(CLASS_LEAVING);
     }

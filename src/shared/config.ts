@@ -558,6 +558,9 @@ export const KMH_PER_MS = 3.6;
 /** Display duration of the shot and timing popup (s), per GAME_SPEC §10.6. */
 export const SHOT_POPUP_DURATION_S = 1.2;
 
+/** Length of the CSS fade-out at the end of the popup life (s); keep equal to the stylesheet transition. */
+export const SHOT_POPUP_FADE_OUT_S = 0.25;
+
 /** Hitbox debug wireframe color while the hitbox is disabled, hex, per GAME_SPEC §13.1. */
 export const HITBOX_COLOR_IDLE = 0x9ca3af;
 

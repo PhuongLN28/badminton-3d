@@ -121,7 +121,7 @@ body {
   animation: shot-popup-pop 0.18s ease-out;
 }
 
-/* Fade-out length must match FADE_OUT_S in shotPopup.ts. */
+/* Fade-out length must match SHOT_POPUP_FADE_OUT_S in config.ts. */
 .shot-popup--leaving {
   opacity: 0;
   transition: opacity 0.25s ease-in;
