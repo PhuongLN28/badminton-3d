@@ -1,0 +1,660 @@
+{
+  "generated_by": "tools/shuttle_reference.py",
+  "model": "a = g_vec - (g/VT^2)*|v|*v ; RK4 reference dt=1/4000 s",
+  "constants": {
+    "g": 9.81,
+    "terminal_velocity": 6.8,
+    "net_height": 1.524,
+    "floor_y": 0.0
+  },
+  "tolerances": {
+    "position_m": 0.01,
+    "time_s": 0.01,
+    "speed_rel": 0.005,
+    "angle_deg": 1.0,
+    "ratio_abs": 0.03
+  },
+  "cases": [
+    {
+      "name": "fall_from_rest",
+      "note": "Rơi tự do có cản: v(t)=VT*tanh(g t/VT), quãng rơi=(VT^2/g)*ln(cosh(g t/VT))",
+      "p0": [
+        0,
+        50,
+        0
+      ],
+      "v0": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "speed": 0.0,
+      "elevation_deg": 0,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": false,
+        "samples": [
+          {
+            "t": 0.5,
+            "pos": [
+              0.0,
+              48.86733,
+              0.0
+            ],
+            "vel": [
+              0.0,
+              -4.20055,
+              0.0
+            ]
+          },
+          {
+            "t": 1.0,
+            "pos": [
+              0.0,
+              46.21108,
+              0.0
+            ],
+            "vel": [
+              0.0,
+              -6.08076,
+              0.0
+            ]
+          },
+          {
+            "t": 2.0,
+            "pos": [
+              0.0,
+              39.65252,
+              0.0
+            ],
+            "vel": [
+              0.0,
+              -6.75773,
+              0.0
+            ]
+          },
+          {
+            "t": 3.0,
+            "pos": [
+              0.0,
+              32.86637,
+              0.0
+            ],
+            "vel": [
+              0.0,
+              -6.79763,
+              0.0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "horizontal_decay_no_gravity",
+      "note": "Tắt trọng lực: v(t)=v0/(1+v0 t/L), s(t)=L ln(1+v0 t/L), L=VT^2/g=4.714 m",
+      "p0": [
+        0,
+        1,
+        0
+      ],
+      "v0": [
+        60.0,
+        0.0,
+        0.0
+      ],
+      "speed": 60.0,
+      "elevation_deg": 0,
+      "gravity": false,
+      "drag": true,
+      "expected": {
+        "landed": false,
+        "samples": [
+          {
+            "t": 0.1,
+            "pos": [
+              3.87015,
+              1.0,
+              0.0
+            ],
+            "vel": [
+              26.39772,
+              0.0,
+              0.0
+            ]
+          },
+          {
+            "t": 0.25,
+            "pos": [
+              6.74446,
+              1.0,
+              0.0
+            ],
+            "vel": [
+              14.34614,
+              0.0,
+              0.0
+            ]
+          },
+          {
+            "t": 0.5,
+            "pos": [
+              9.4115,
+              1.0,
+              0.0
+            ],
+            "vel": [
+              8.14706,
+              0.0,
+              0.0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "parabola_no_drag",
+      "note": "Tắt lực cản: tầm xa = v^2/g = 10.194 m, quỹ đạo đối xứng (ratio ~ 1)",
+      "p0": [
+        0,
+        0,
+        0
+      ],
+      "v0": [
+        7.071068,
+        7.071068,
+        0.0
+      ],
+      "speed": 10.0,
+      "elevation_deg": 45,
+      "gravity": true,
+      "drag": false,
+      "expected": {
+        "landed": true,
+        "t_land": 1.4416,
+        "land": {
+          "x": 10.1937,
+          "z": 0.0
+        },
+        "apex": {
+          "x": 5.0965,
+          "y": 2.5484
+        },
+        "net_cross": null,
+        "hits_net": false,
+        "land_speed": 10.0,
+        "descent_angle_deg": 45.0,
+        "desc_over_asc_ratio": 1.0,
+        "samples": []
+      }
+    },
+    {
+      "name": "clear_from_back",
+      "note": "Phông cầu cuối sân -> cuối sân đối phương",
+      "p0": [
+        -5.0,
+        2.6,
+        0
+      ],
+      "v0": [
+        33.163308,
+        33.163308,
+        0.0
+      ],
+      "speed": 46.9,
+      "elevation_deg": 45,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 2.4948,
+        "land": {
+          "x": 6.0028,
+          "z": 0.0
+        },
+        "apex": {
+          "x": 2.4062,
+          "y": 8.2506
+        },
+        "net_cross": {
+          "y": 7.2115,
+          "speed": 9.69
+        },
+        "hits_net": false,
+        "land_speed": 6.678,
+        "descent_angle_deg": 85.07,
+        "desc_over_asc_ratio": 0.486,
+        "samples": []
+      }
+    },
+    {
+      "name": "clear_from_mid",
+      "note": "Phông cầu từ giữa sân",
+      "p0": [
+        -3.5,
+        2.6,
+        0
+      ],
+      "v0": [
+        22.203153,
+        22.203153,
+        0.0
+      ],
+      "speed": 31.4,
+      "elevation_deg": 45,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 2.2617,
+        "land": {
+          "x": 6.0046,
+          "z": 0.0
+        },
+        "apex": {
+          "x": 2.5621,
+          "y": 7.0045
+        },
+        "net_cross": {
+          "y": 5.8247,
+          "speed": 10.206
+        },
+        "hits_net": false,
+        "land_speed": 6.604,
+        "descent_angle_deg": 83.54,
+        "desc_over_asc_ratio": 0.568,
+        "samples": []
+      }
+    },
+    {
+      "name": "lift_underhand",
+      "note": "Lốp cầu thấp tay từ gần lưới",
+      "p0": [
+        -1.5,
+        0.6,
+        0
+      ],
+      "v0": [
+        15.486564,
+        22.117105,
+        0.0
+      ],
+      "speed": 27.0,
+      "elevation_deg": 55,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 2.0764,
+        "land": {
+          "x": 5.9939,
+          "z": 0.0
+        },
+        "apex": {
+          "x": 3.3282,
+          "y": 5.504
+        },
+        "net_cross": {
+          "y": 2.6735,
+          "speed": 14.878
+        },
+        "hits_net": false,
+        "land_speed": 6.454,
+        "descent_angle_deg": 82.23,
+        "desc_over_asc_ratio": 0.552,
+        "samples": []
+      }
+    },
+    {
+      "name": "smash_standing",
+      "note": "Đập cầu đứng, góc dốc nhất còn qua lưới >= 10 cm",
+      "p0": [
+        -4.0,
+        2.7,
+        0
+      ],
+      "v0": [
+        58.11499,
+        -14.921393,
+        0.0
+      ],
+      "speed": 60.0,
+      "elevation_deg": -14.4,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 0.4222,
+        "land": {
+          "x": 4.4121,
+          "z": 0.0
+        },
+        "apex": {
+          "x": -4.0,
+          "y": 2.7
+        },
+        "net_cross": {
+          "y": 1.6273,
+          "speed": 25.122
+        },
+        "hits_net": false,
+        "land_speed": 10.026,
+        "descent_angle_deg": 27.59,
+        "desc_over_asc_ratio": null,
+        "samples": []
+      }
+    },
+    {
+      "name": "smash_jump",
+      "note": "Đập cầu nhảy: điểm chạm cao hơn nên cắm dốc hơn",
+      "p0": [
+        -4.0,
+        3.1,
+        0
+      ],
+      "v0": [
+        56.558489,
+        -20.028412,
+        0.0
+      ],
+      "speed": 60.0,
+      "elevation_deg": -19.5,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 0.3611,
+        "land": {
+          "x": 3.6123,
+          "z": 0.0
+        },
+        "apex": {
+          "x": -4.0,
+          "y": 3.1
+        },
+        "net_cross": {
+          "y": 1.6342,
+          "speed": 24.576
+        },
+        "hits_net": false,
+        "land_speed": 11.328,
+        "descent_angle_deg": 29.38,
+        "desc_over_asc_ratio": null,
+        "samples": []
+      }
+    },
+    {
+      "name": "smash_into_net",
+      "note": "Đập quá dốc từ cuối sân: PHẢI chạm lưới",
+      "p0": [
+        -4.0,
+        2.7,
+        0
+      ],
+      "v0": [
+        52.127263,
+        -17.542762,
+        0.0
+      ],
+      "speed": 55.0,
+      "elevation_deg": -18.6,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 0.3281,
+        "land": {
+          "x": 3.0025,
+          "z": 0.0
+        },
+        "apex": {
+          "x": -4.0,
+          "y": 2.7
+        },
+        "net_cross": {
+          "y": 1.2961,
+          "speed": 22.662
+        },
+        "hits_net": true,
+        "land_speed": 11.929,
+        "descent_angle_deg": 27.39,
+        "desc_over_asc_ratio": null,
+        "samples": []
+      }
+    },
+    {
+      "name": "smash_fast_reference",
+      "note": "Dùng cho test độ chính xác bộ tích phân",
+      "p0": [
+        -4.0,
+        3.0,
+        0
+      ],
+      "v0": [
+        64.012504,
+        -11.287132,
+        0.0
+      ],
+      "speed": 65.0,
+      "elevation_deg": -10.0,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 0.6372,
+        "land": {
+          "x": 6.5004,
+          "z": 0.0
+        },
+        "apex": {
+          "x": -4.0,
+          "y": 3.0
+        },
+        "net_cross": {
+          "y": 2.2575,
+          "speed": 27.548
+        },
+        "hits_net": false,
+        "land_speed": 7.629,
+        "descent_angle_deg": 35.56,
+        "desc_over_asc_ratio": null,
+        "samples": []
+      }
+    },
+    {
+      "name": "drop_shot",
+      "note": "Bỏ nhỏ từ cuối sân, rơi trước vạch giao cầu ngắn",
+      "p0": [
+        -4.5,
+        2.6,
+        0
+      ],
+      "v0": [
+        11.128328,
+        1.962224,
+        0.0
+      ],
+      "speed": 11.3,
+      "elevation_deg": 10,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 1.0509,
+        "land": {
+          "x": 1.1964,
+          "z": 0.0
+        },
+        "apex": {
+          "x": -2.9353,
+          "y": 2.7531
+        },
+        "net_cross": {
+          "y": 1.6842,
+          "speed": 5.521
+        },
+        "hits_net": false,
+        "land_speed": 5.916,
+        "descent_angle_deg": 63.94,
+        "desc_over_asc_ratio": 2.641,
+        "samples": []
+      }
+    },
+    {
+      "name": "net_shot",
+      "note": "Bỏ nhỏ sát lưới, qua lưới ~8 cm",
+      "p0": [
+        -0.5,
+        1.2,
+        0
+      ],
+      "v0": [
+        1.335235,
+        3.191982,
+        0.0
+      ],
+      "speed": 3.46,
+      "elevation_deg": 67.3,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 0.9207,
+        "land": {
+          "x": 0.5,
+          "z": 0.0
+        },
+        "apex": {
+          "x": -0.1288,
+          "y": 1.6629
+        },
+        "net_cross": {
+          "y": 1.6026,
+          "speed": 1.564
+        },
+        "hits_net": false,
+        "land_speed": 4.88,
+        "descent_angle_deg": 80.66,
+        "desc_over_asc_ratio": 1.694,
+        "samples": []
+      }
+    },
+    {
+      "name": "low_serve",
+      "note": "Giao cầu thấp, điểm chạm < 1.15 m, rơi qua vạch 1.98",
+      "p0": [
+        -2.2,
+        1.05,
+        0
+      ],
+      "v0": [
+        8.225933,
+        4.029843,
+        0.0
+      ],
+      "speed": 9.16,
+      "elevation_deg": 26.1,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 0.9551,
+        "land": {
+          "x": 2.2983,
+          "z": 0.0
+        },
+        "apex": {
+          "x": -0.1492,
+          "y": 1.6274
+        },
+        "net_cross": {
+          "y": 1.6234,
+          "speed": 5.06
+        },
+        "hits_net": false,
+        "land_speed": 5.312,
+        "descent_angle_deg": 59.35,
+        "desc_over_asc_ratio": 1.193,
+        "samples": []
+      }
+    },
+    {
+      "name": "high_serve",
+      "note": "Giao cầu cao sâu",
+      "p0": [
+        -2.2,
+        1.0,
+        0
+      ],
+      "v0": [
+        20.820825,
+        29.735219,
+        0.0
+      ],
+      "speed": 36.3,
+      "elevation_deg": 55,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 2.3411,
+        "land": {
+          "x": 6.3038,
+          "z": 0.0
+        },
+        "apex": {
+          "x": 3.4426,
+          "y": 6.9611
+        },
+        "net_cross": {
+          "y": 4.0408,
+          "speed": 15.436
+        },
+        "hits_net": false,
+        "land_speed": 6.606,
+        "descent_angle_deg": 84.4,
+        "desc_over_asc_ratio": 0.507,
+        "samples": []
+      }
+    },
+    {
+      "name": "drive_flat",
+      "note": "Tạt cầu ngang",
+      "p0": [
+        -3.0,
+        1.5,
+        0
+      ],
+      "v0": [
+        30.258475,
+        1.585779,
+        0.0
+      ],
+      "speed": 30.3,
+      "elevation_deg": 3,
+      "gravity": true,
+      "drag": true,
+      "expected": {
+        "landed": true,
+        "t_land": 0.8019,
+        "land": {
+          "x": 5.4981,
+          "z": 0.0
+        },
+        "apex": {
+          "x": -0.3512,
+          "y": 1.5821
+        },
+        "net_cross": {
+          "y": 1.5799,
+          "speed": 16.008
+        },
+        "hits_net": false,
+        "land_speed": 6.207,
+        "descent_angle_deg": 41.84,
+        "desc_over_asc_ratio": 2.208,
+        "samples": []
+      }
+    }
+  ]
+}
