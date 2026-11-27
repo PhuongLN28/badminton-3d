@@ -1,3 +1,12 @@
+import type {
+  HitboxSpec,
+  ShotParams,
+  ShotType,
+  SwingKind,
+  TimingGrade,
+  TimingParams,
+} from './types';
+
 /** Fixed simulation frequency (Hz), per GAME_SPEC §3. */
 export const PHYSICS_HZ = 120;
 
@@ -221,8 +230,8 @@ export const NET_CORD_ENABLED = false;
 /** Default maximum simulated flight duration before stopping (s). */
 export const FLIGHT_DEFAULT_MAX_TIME_S = 10.0;
 
-/** Temporary Phase 2 flag enabling automatic player-box shuttle bounce-back, per ROADMAP Phase 2. */
-export const DEBUG_AUTO_RETURN = true;
+/** Temporary Phase 2 flag enabling automatic player-box shuttle bounce-back; disabled in Phase 3, per ROADMAP Phase 3. */
+export const DEBUG_AUTO_RETURN = false;
 
 /** Launch speed for temporary Phase 2 player-box auto-return (m/s), per ROADMAP Phase 2. */
 export const DEBUG_AUTO_RETURN_SPEED = 30.0;
@@ -312,3 +321,242 @@ export const CAMERA_CLOSEUP_OFFSET = { x: 0, y: 0.25, z: 2.2 } as const;
 
 /** Maximum number of recent SimEvents retained in ring/rolling buffer for test hooks. */
 export const MAX_STORED_EVENTS = 512;
+
+// ---------------------------------------------------------------------------
+// Phase 3: swing, hitbox, shot table, solver and timing (GAME_SPEC §5)
+// ---------------------------------------------------------------------------
+
+/** Swing wind-up duration before the ACTIVE span starts (s), per GAME_SPEC §5.1. */
+export const SWING_WINDUP = 0.05;
+
+/** Swing ACTIVE span duration while the hitbox is enabled (s), per GAME_SPEC §5.1. */
+export const SWING_ACTIVE = 0.2;
+
+/** Swing recovery duration after the ACTIVE span (s), per GAME_SPEC §5.1. */
+export const SWING_RECOVERY = 0.25;
+
+/** Horizontal move factor applied while the swing phase is not READY (dimensionless), per GAME_SPEC §5.1. */
+export const SWING_MOVE_FACTOR = 0.5;
+
+/** Look-ahead used to predict the shuttle height at swing start: wind-up plus half the ACTIVE span (s), per GAME_SPEC §5.2. */
+export const SWING_PREDICT_LEAD_S = SWING_WINDUP + SWING_ACTIVE / 2;
+
+/** Predicted height above the feet from which a swing is overhead (m), per GAME_SPEC §5.2. */
+export const SWING_OVERHEAD_MIN_HEIGHT = 1.8;
+
+/** Predicted height above the feet from which a swing is mid rather than underhand (m), per GAME_SPEC §5.2. */
+export const SWING_MID_MIN_HEIGHT = 1.0;
+
+/** Swing kind used when the shuttle is not flying at swing start (proposal, see DECISIONS D-017). */
+export const SWING_FALLBACK_KIND: Exclude<SwingKind, 'serve'> = 'mid';
+
+/** Overhead hitbox relative to the feet: forward offset, center height, radius (m), per GAME_SPEC §5.2. */
+export const HITBOX_OVERHEAD: HitboxSpec = { offsetX: 0.2, offsetY: 2.3, radius: 0.5 };
+
+/** Mid hitbox relative to the feet: forward offset, center height, radius (m), per GAME_SPEC §5.2. */
+export const HITBOX_MID: HitboxSpec = { offsetX: 0.45, offsetY: 1.4, radius: 0.5 };
+
+/** Underhand hitbox relative to the feet: forward offset, center height, radius (m), per GAME_SPEC §5.2. */
+export const HITBOX_UNDERHAND: HitboxSpec = { offsetX: 0.5, offsetY: 0.6, radius: 0.55 };
+
+/** Forward offset of the held shuttle from the server feet along facing (m), per GAME_SPEC §5.2 and §7.3. */
+export const SERVE_CONTACT_OFFSET_X = 0.35;
+
+/** Height of the held shuttle above the server feet (m), per GAME_SPEC §5.2 and §7.3. */
+export const SERVE_CONTACT_Y = 1.0;
+
+/** Upward launch speed of the temporary practice toss on key T (m/s), per ROADMAP Phase 3 item 8 and DECISIONS D-020. */
+export const PRACTICE_TOSS_VY = 10.0;
+
+/** Tolerance when comparing tick-derived times with spec thresholds (s), per DECISIONS D-017. */
+export const TIME_EPSILON_S = 1e-9;
+
+/** Minimum contact height for a power overhead swing to become SMASH (m), per GAME_SPEC §5.3 and D-004. */
+export const SMASH_MIN_CONTACT_Y = 2.2;
+
+/** Maximum hitter distance from the net for an underhand soft swing to become NET_SHOT (m), per GAME_SPEC §5.3. */
+export const NET_SHOT_MAX_HITTER_DIST = 2.5;
+
+/** Smash speed multiplier when the hitter is airborne (dimensionless), 60 m/s becomes 64.8 m/s, per GAME_SPEC §5.3 and D-011. */
+export const JUMP_SMASH_SPEED_MULT = 1.08;
+
+/** Minimum net clearance required by the assist check for ordinary shots (m), per GAME_SPEC §5.5. */
+export const MIN_NET_CLEARANCE = 0.05;
+
+/** Minimum net clearance required by the assist check for SMASH and DRIVE (m), per GAME_SPEC §5.5. */
+export const MIN_NET_CLEARANCE_POWER = 0.1;
+
+/** Smallest legal landing depth measured from the net (m), per DECISIONS D-014. */
+export const TARGET_MIN_DEPTH = 0.2;
+
+/** Distance kept between the landing target and the back boundary line (m), per GAME_SPEC §5.7. */
+export const TARGET_EDGE_MARGIN = 0.2;
+
+/** Largest legal landing depth measured from the net (m), per GAME_SPEC §5.7. */
+export const TARGET_MAX_DEPTH = COURT_HALF_LENGTH - TARGET_EDGE_MARGIN;
+
+/**
+ * Shot parameter table keyed by shot type, per GAME_SPEC §5.4, §5.5 and §5.7.
+ * Elevation in deg, speed in m/s, clearance and depths in m measured from the net.
+ * `depthRange` is a reference span from the spec; shots without one use the full legal depth span.
+ * It is informational only and never clamps the landing depth.
+ */
+export const SHOT_PARAMS: Readonly<Record<ShotType, ShotParams>> = {
+  CLEAR: {
+    solveMode: 'FIXED_ELEV',
+    elevationDeg: 45,
+    defaultDepth: 6.0,
+    depthRange: [5.6, 6.4],
+    minNetClearance: MIN_NET_CLEARANCE,
+    aimDeltaM: 0.6,
+  },
+  LIFT: {
+    solveMode: 'FIXED_ELEV',
+    elevationDeg: 55,
+    defaultDepth: 6.0,
+    depthRange: [TARGET_MIN_DEPTH, TARGET_MAX_DEPTH],
+    minNetClearance: MIN_NET_CLEARANCE,
+    aimDeltaM: 0.6,
+  },
+  SMASH: {
+    solveMode: 'FIXED_SPEED',
+    speed: 60,
+    defaultDepth: 4.5,
+    depthRange: [3.0, 5.5],
+    minNetClearance: MIN_NET_CLEARANCE_POWER,
+    aimDeltaM: 0.8,
+  },
+  DRIVE: {
+    solveMode: 'FIXED_ELEV',
+    elevationDeg: 3,
+    defaultDepth: 5.0,
+    depthRange: [TARGET_MIN_DEPTH, TARGET_MAX_DEPTH],
+    minNetClearance: MIN_NET_CLEARANCE_POWER,
+    aimDeltaM: 0.8,
+  },
+  DROP: {
+    solveMode: 'FIXED_ELEV',
+    elevationDeg: 10,
+    defaultDepth: 1.4,
+    depthRange: [0.8, 1.9],
+    minNetClearance: MIN_NET_CLEARANCE,
+    aimDeltaM: 0.3,
+  },
+  BLOCK: {
+    solveMode: 'TWO_POINT',
+    clearance: 0.2,
+    defaultDepth: 1.5,
+    depthRange: [TARGET_MIN_DEPTH, TARGET_MAX_DEPTH],
+    minNetClearance: MIN_NET_CLEARANCE,
+    aimDeltaM: 0.3,
+  },
+  NET_SHOT: {
+    solveMode: 'TWO_POINT',
+    clearance: 0.08,
+    defaultDepth: 0.5,
+    depthRange: [TARGET_MIN_DEPTH, TARGET_MAX_DEPTH],
+    minNetClearance: MIN_NET_CLEARANCE,
+    aimDeltaM: 0.3,
+  },
+  HIGH_SERVE: {
+    solveMode: 'FIXED_ELEV',
+    elevationDeg: 55,
+    defaultDepth: 6.3,
+    depthRange: [TARGET_MIN_DEPTH, TARGET_MAX_DEPTH],
+    minNetClearance: MIN_NET_CLEARANCE,
+    aimDeltaM: 0.6,
+  },
+  LOW_SERVE: {
+    solveMode: 'TWO_POINT',
+    clearance: 0.1,
+    defaultDepth: 2.3,
+    depthRange: [TARGET_MIN_DEPTH, TARGET_MAX_DEPTH],
+    minNetClearance: MIN_NET_CLEARANCE,
+    aimDeltaM: 0.3,
+  },
+};
+
+/** Lower bound of the speed search for FIXED_ELEV solving (m/s), per GAME_SPEC §5.5. */
+export const SOLVER_SPEED_MIN = 1;
+
+/** Upper bound of the speed search for FIXED_ELEV solving (m/s), per GAME_SPEC §5.5; clamped to SHUTTLE_MAX_SPEED at run time, see D-019. */
+export const SOLVER_SPEED_MAX = 150;
+
+/** Lower bound of the angle search for FIXED_SPEED solving (deg), per GAME_SPEC §5.5. */
+export const SOLVER_ANGLE_MIN_DEG = -60;
+
+/** Upper bound of the angle search for FIXED_SPEED solving (deg), per GAME_SPEC §5.5. */
+export const SOLVER_ANGLE_MAX_DEG = 10;
+
+/** Lower bound of the outer angle search for TWO_POINT solving (deg), per GAME_SPEC §5.5. */
+export const SOLVER_TP_ANGLE_MIN_DEG = -30;
+
+/** Upper bound of the outer angle search for TWO_POINT solving (deg), per GAME_SPEC §5.5. */
+export const SOLVER_TP_ANGLE_MAX_DEG = 85;
+
+/** Lower bound of the inner speed search for TWO_POINT solving (m/s), per GAME_SPEC §5.5. */
+export const SOLVER_TP_SPEED_MIN = 0.5;
+
+/** Upper bound of the inner speed search for TWO_POINT solving (m/s), per GAME_SPEC §5.5. */
+export const SOLVER_TP_SPEED_MAX = 40;
+
+/** Landing position tolerance that stops the bisection early (m), per GAME_SPEC §5.5. */
+export const SOLVER_LAND_TOL = 0.002;
+
+/** Net crossing height tolerance that stops the TWO_POINT outer bisection early (m), per GAME_SPEC §5.5. */
+export const SOLVER_NET_TOL = 0.002;
+
+/** Maximum bisection iterations per search loop (count), safety bound. */
+export const SOLVER_MAX_ITER = 60;
+
+/** TWO_POINT angle at or above which an unreachable landing counts as "too high" (deg), per DECISIONS D-016. */
+export const SOLVER_TP_UNREACHABLE_SPLIT_DEG = 45;
+
+/** Elevation increase per retry when the assist lifts a FIXED_ELEV shot over the net (deg), per GAME_SPEC §5.5. */
+export const ASSIST_ELEV_STEP_DEG = 2;
+
+/** Maximum total elevation increase applied by the assist (deg), per GAME_SPEC §5.5. */
+export const ASSIST_ELEV_MAX_DEG = 20;
+
+/** Depth increase per retry when the assist pushes a FIXED_SPEED shot deeper (m), per GAME_SPEC §5.5. */
+export const ASSIST_DEPTH_STEP = 0.1;
+
+/** Deepest landing depth the assist may reach, 0.3 m short of the back boundary line (m), per GAME_SPEC §5.5. */
+export const ASSIST_DEPTH_MAX = COURT_HALF_LENGTH - 0.3;
+
+/** Largest contact time offset from the ACTIVE span center that still grades PERFECT (s), per GAME_SPEC §5.6. */
+export const TIMING_PERFECT_MAX_S = 0.035;
+
+/** Largest contact time offset from the ACTIVE span center that still grades GOOD (s), per GAME_SPEC §5.6. */
+export const TIMING_GOOD_MAX_S = 0.07;
+
+/** Error model per timing grade: depth sigma (m), angle sigma (deg), clearance sigma (m), speed factor (-), per GAME_SPEC §5.6. */
+export const TIMING_PARAMS: Readonly<Record<TimingGrade, TimingParams>> = {
+  PERFECT: { targetSigmaM: 0, angleSigmaDeg: 0, clearanceSigmaM: 0, speedFactor: 1.05 },
+  GOOD: { targetSigmaM: 0.25, angleSigmaDeg: 1.0, clearanceSigmaM: 0.03, speedFactor: 1.0 },
+  OK: { targetSigmaM: 0.6, angleSigmaDeg: 3.0, clearanceSigmaM: 0.08, speedFactor: 0.9 },
+};
+
+/** Shots that receive the timing speed factor; softer shots ignore it, per DECISIONS D-012. */
+export const TIMING_SPEED_FACTOR_SHOTS: readonly ShotType[] = ['SMASH', 'DRIVE'];
+
+/** Constant subtracted from the sum of four uniforms to center the Irwin-Hall approximation (dimensionless), per GAME_SPEC §5.6. */
+export const IRWIN_HALL_OFFSET = 2;
+
+/** Scale of the centered Irwin-Hall sum of four uniforms to unit variance (dimensionless), per GAME_SPEC §5.6. */
+export const IRWIN_HALL_SCALE = Math.sqrt(3);
+
+/** Conversion factor from m/s to km/h (dimensionless), per GAME_SPEC §5.8. */
+export const KMH_PER_MS = 3.6;
+
+/** Display duration of the shot and timing popup (s), per GAME_SPEC §10.6. */
+export const SHOT_POPUP_DURATION_S = 1.2;
+
+/** Hitbox debug wireframe color while the hitbox is disabled, hex, per GAME_SPEC §13.1. */
+export const HITBOX_COLOR_IDLE = 0x9ca3af;
+
+/** Hitbox debug wireframe color while the swing is ACTIVE, hex, per GAME_SPEC §13.1. */
+export const HITBOX_COLOR_ACTIVE = 0x22c55e;
+
+/** Segment count of the hitbox debug wireframe sphere (count), per GAME_SPEC §13.1. */
+export const HITBOX_WIRE_SEGMENTS = 16;

@@ -23,6 +23,9 @@ export interface Quat {
 /** Swing action button requested in an input frame. */
 export type SwingButton = 'high' | 'power' | 'soft' | null;
 
+/** Swing action button that is actually pressed (never null). */
+export type PressedSwingButton = Exclude<SwingButton, null>;
+
 /** Aim direction along court depth (-1 back, 0 neutral, +1 forward toward net). */
 export type AimDirection = -1 | 0 | 1;
 
@@ -55,6 +58,64 @@ export type SwingKind = 'overhead' | 'mid' | 'underhand' | 'serve';
 
 /** Timing grade around center of ACTIVE swing window, per GAME_SPEC §5.6. */
 export type TimingGrade = 'PERFECT' | 'GOOD' | 'OK';
+
+/** Swing state machine phase, per GAME_SPEC §5.1. */
+export type SwingPhase = 'READY' | 'WINDUP' | 'ACTIVE' | 'RECOVERY';
+
+/** Racket hitbox sphere relative to the player feet, per GAME_SPEC §5.2. */
+export interface HitboxSpec {
+  /** Forward offset of the sphere center along the facing direction (m). */
+  offsetX: number;
+  /** Height of the sphere center above the player feet (m). */
+  offsetY: number;
+  /** Sphere radius (m). */
+  radius: number;
+}
+
+/** Shot solver strategy, per GAME_SPEC §5.4. */
+export type SolveMode = 'FIXED_ELEV' | 'FIXED_SPEED' | 'TWO_POINT';
+
+/** Fields shared by every shot parameter set, per GAME_SPEC §5.4, §5.5 and §5.7. */
+export interface ShotParamsBase {
+  /** Default landing depth measured from the net toward the opponent (m). */
+  defaultDepth: number;
+  /** Allowed landing depth span [min, max] measured from the net (m). */
+  depthRange: readonly [number, number];
+  /** Minimum clearance above the net top required when assist is on (m). */
+  minNetClearance: number;
+  /** Landing depth shift applied per aim step, forward shortens and backward deepens (m). */
+  aimDeltaM: number;
+}
+
+/** Shot parameters, discriminated by `solveMode`, per GAME_SPEC §5.4. */
+export type ShotParams =
+  | (ShotParamsBase & {
+      solveMode: 'FIXED_ELEV';
+      /** Fixed launch elevation (deg). */
+      elevationDeg: number;
+    })
+  | (ShotParamsBase & {
+      solveMode: 'FIXED_SPEED';
+      /** Fixed launch speed (m/s). */
+      speed: number;
+    })
+  | (ShotParamsBase & {
+      solveMode: 'TWO_POINT';
+      /** Target clearance above the net top (m). */
+      clearance: number;
+    });
+
+/** Error model and speed factor of one timing grade, per GAME_SPEC §5.6. */
+export interface TimingParams {
+  /** Landing depth standard deviation (m). */
+  targetSigmaM: number;
+  /** Launch angle standard deviation (deg). */
+  angleSigmaDeg: number;
+  /** Net clearance standard deviation (m). */
+  clearanceSigmaM: number;
+  /** Launch speed multiplier (dimensionless). */
+  speedFactor: number;
+}
 
 /** Supported game modes, per GAME_SPEC §1. */
 export type GameMode = 'pve' | 'local' | 'online';
@@ -103,6 +164,8 @@ export type SimEvent =
       speedKmh: number;
       targetDepth: number;
       adjusted: boolean;
+      /** Contact time minus ACTIVE span center (s); negative means early, positive means late. */
+      timingOffsetS: number;
     }
   | {
       type: 'netHit';
@@ -153,7 +216,7 @@ export type SimEvent =
       tick: number;
       player: PlayerIndex;
       kind: SwingKind;
-      button: Exclude<SwingButton, null>;
+      button: PressedSwingButton;
     }
   | {
       type: 'serve';
@@ -180,7 +243,7 @@ export interface PlayerSnapshot {
   vy: number;
   facing: 1 | -1;
   grounded: boolean;
-  swingState: 'READY' | 'WINDUP' | 'ACTIVE' | 'RECOVERY';
+  swingState: SwingPhase;
 }
 
 /** Read-only shuttle snapshot exposed via test hooks. */
@@ -221,6 +284,10 @@ export interface BadmintonTestHooks {
   setSeed(seed: number): void;
   startMatch(cfg: Partial<MatchConfig>): void;
   spawnShuttle(p: Vec3, v: Vec3): void;
+  /** Toss the practice shuttle from the hand of `player` (same as the temporary `T` key, Phase 3). */
+  tossShuttle(player: PlayerIndex): void;
+  /** Teleport `player` to `x` (m) at rest on the ground, clamped to the legal range (test only). */
+  setPlayerX(player: PlayerIndex, x: number): void;
   forceLanding(x: number): void;
   setInput(player: PlayerIndex, input: Partial<InputFrame>, ticks?: number): void;
 }

@@ -33,8 +33,15 @@ export interface TestHooksContext {
   setSeed(seed: number): void;
   startMatch?(cfg: Partial<MatchConfig>): void;
   spawnShuttle?(p: Vec3, v: Vec3): void;
+  tossShuttle?(player: PlayerIndex): void;
+  setPlayerX?(player: PlayerIndex, x: number): void;
   forceLanding?(x: number): void;
   setInput?(player: PlayerIndex, input: Partial<InputFrame>, ticks?: number): void;
+}
+
+/** Warn (never throw) when a hook is called before the client runtime has wired its callback. */
+function warnHookUnavailable(name: string): void {
+  console.warn(`[test hooks] ${name} is not wired yet, call ignored`);
 }
 
 /**
@@ -62,6 +69,20 @@ export function installTestHooks(
     },
     spawnShuttle: (p: Vec3, v: Vec3) => {
       context.spawnShuttle?.(p, v);
+    },
+    tossShuttle: (player: PlayerIndex) => {
+      if (context.tossShuttle === undefined) {
+        warnHookUnavailable('tossShuttle');
+        return;
+      }
+      context.tossShuttle(player);
+    },
+    setPlayerX: (player: PlayerIndex, x: number) => {
+      if (context.setPlayerX === undefined) {
+        warnHookUnavailable('setPlayerX');
+        return;
+      }
+      context.setPlayerX(player, x);
     },
     forceLanding: (x: number) => {
       context.forceLanding?.(x);
