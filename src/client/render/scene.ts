@@ -1,8 +1,5 @@
 import * as THREE from 'three';
 import {
-  COURT_HALF_LENGTH,
-  COURT_HALF_WIDTH_DOUBLES,
-  COURT_MAT_COLOR,
   OUTER_FLOOR_COLOR,
   OUTER_FLOOR_DEPTH,
   OUTER_FLOOR_WIDTH,
@@ -10,6 +7,8 @@ import {
   SCENE_BG_COLOR,
   SHADOW_MAP_SIZE,
 } from '@shared/config';
+import { createCourtGroup } from './court';
+import { createNetGroup } from './net';
 
 /** Bundle holding Three.js arena scene, WebGL renderer, lights, and cleanup handler. */
 export interface ArenaScene {
@@ -72,20 +71,12 @@ export function createArenaScene(container: HTMLElement): ArenaScene {
   outerFloor.receiveShadow = true;
   scene.add(outerFloor);
 
-  const courtGeometry = new THREE.PlaneGeometry(
-    COURT_HALF_LENGTH * 2,
-    COURT_HALF_WIDTH_DOUBLES * 2,
-  );
-  const courtMaterial = new THREE.MeshStandardMaterial({
-    color: COURT_MAT_COLOR,
-    roughness: 0.72,
-    metalness: 0.02,
-  });
-  const courtMat = new THREE.Mesh(courtGeometry, courtMaterial);
-  courtMat.rotation.x = -Math.PI / 2;
-  courtMat.position.y = 0.002;
-  courtMat.receiveShadow = true;
-  scene.add(courtMat);
+  const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+  const court = createCourtGroup(maxAnisotropy);
+  scene.add(court.group);
+
+  const net = createNetGroup(maxAnisotropy);
+  scene.add(net.group);
 
   const resize = (nextWidthPx: number, nextHeightPx: number): void => {
     const w = Math.max(1, nextWidthPx);
@@ -97,8 +88,8 @@ export function createArenaScene(container: HTMLElement): ArenaScene {
   const dispose = (): void => {
     outerFloorGeometry.dispose();
     outerFloorMaterial.dispose();
-    courtGeometry.dispose();
-    courtMaterial.dispose();
+    court.dispose();
+    net.dispose();
     renderer.dispose();
     renderer.domElement.remove();
   };

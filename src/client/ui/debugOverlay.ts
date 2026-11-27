@@ -2,11 +2,13 @@ import type { MatchPhase } from '@shared/types';
 import type { LoopStats } from '../loop';
 import { VI } from './i18n/vi';
 
-/** Telemetry fields rendered by the Phase 0 debug overlay. */
+/** Telemetry fields rendered by the debug overlay. */
 export interface DebugOverlayData {
   tick: number;
   phase: MatchPhase;
   stats: Readonly<LoopStats>;
+  p1: { x: number; y: number };
+  p2: { x: number; y: number };
 }
 
 /** DOM debug overlay controller toggled via `?debug=1` or `F3`. */
@@ -65,6 +67,8 @@ export function createDebugOverlay(
   const stepMsVal = createRow(VI.debug.stepMsLabel, 'debug-step-ms');
   const alphaVal = createRow(VI.debug.alphaLabel, 'debug-alpha');
   const phaseVal = createRow(VI.debug.phaseLabel, 'debug-phase');
+  const p1Val = createRow(VI.debug.p1PosLabel, 'debug-p1');
+  const p2Val = createRow(VI.debug.p2PosLabel, 'debug-p2');
 
   container.appendChild(root);
 
@@ -75,6 +79,8 @@ export function createDebugOverlay(
   let lastStepMs = '';
   let lastAlpha = '';
   let lastPhase = '';
+  let lastP1 = '';
+  let lastP2 = '';
 
   const setVisible = (nextVisible: boolean): void => {
     visible = nextVisible;
@@ -127,6 +133,18 @@ export function createDebugOverlay(
     if (data.phase !== lastPhase) {
       lastPhase = data.phase;
       phaseVal.textContent = data.phase;
+    }
+
+    const nextP1 = `${data.p1.x.toFixed(2)}, ${data.p1.y.toFixed(2)}`;
+    if (nextP1 !== lastP1) {
+      lastP1 = nextP1;
+      p1Val.textContent = nextP1;
+    }
+
+    const nextP2 = `${data.p2.x.toFixed(2)}, ${data.p2.y.toFixed(2)}`;
+    if (nextP2 !== lastP2) {
+      lastP2 = nextP2;
+      p2Val.textContent = nextP2;
     }
   };
 

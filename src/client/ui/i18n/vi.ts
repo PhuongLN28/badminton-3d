@@ -8,6 +8,8 @@ export const VI = {
     stepMsLabel: 'Bước mô phỏng',
     alphaLabel: 'Alpha nội suy',
     phaseLabel: 'Trạng thái',
+    p1PosLabel: 'P1 (x, y)',
+    p2PosLabel: 'P2 (x, y)',
     pausedBadge: 'TẠM DỪNG',
     runningBadge: 'ĐANG CHẠY',
   },
