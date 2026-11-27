@@ -90,3 +90,82 @@ body {
   border-radius: 6px;
   --name-width: 48%;
 }
+
+.shot-popup {
+  position: fixed;
+  top: 14%;
+  left: 50%;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 90vw;
+  transform: translateX(-50%);
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.45),
+    0 0 14px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.shot-popup--visible {
+  opacity: 1;
+  visibility: visible;
+  animation: shot-popup-pop 0.18s ease-out;
+}
+
+/* Fade-out length must match FADE_OUT_S in shotPopup.ts. */
+.shot-popup--leaving {
+  opacity: 0;
+  transition: opacity 0.25s ease-in;
+}
+
+.shot-popup__shot {
+  font-size: clamp(28px, 5vw, 56px);
+  line-height: 1.1;
+  color: #f8fafc;
+}
+
+.shot-popup__timing {
+  font-size: clamp(18px, 3vw, 32px);
+  line-height: 1.1;
+}
+
+.shot-popup--perfect .shot-popup__timing {
+  color: #fbbf24;
+}
+
+.shot-popup--good .shot-popup__timing {
+  color: #4ade80;
+}
+
+.shot-popup--early .shot-popup__timing {
+  color: #38bdf8;
+}
+
+.shot-popup--late .shot-popup__timing {
+  color: #fb923c;
+}
+
+@keyframes shot-popup-pop {
+  from {
+    transform: translateX(-50%) scale(0.8);
+  }
+
+  to {
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shot-popup--visible {
+    animation: none;
+  }
+}

@@ -1,4 +1,5 @@
-import type { MatchPhase } from '@shared/types';
+import { KMH_PER_MS } from '@shared/config';
+import type { MatchPhase, SwingKind, SwingPhase } from '@shared/types';
 import type { LoopStats } from '../loop';
 import { VI } from './i18n/vi';
 
@@ -10,6 +11,12 @@ export interface DebugOverlayShuttleData {
   state: 'idle' | 'flying' | 'grounded';
 }
 
+/** Swing telemetry of one player; a swing state (`phase`, `kind`) satisfies it structurally. */
+export interface DebugOverlaySwingData {
+  phase: SwingPhase;
+  kind: SwingKind | null;
+}
+
 /** Telemetry fields rendered by the debug overlay. */
 export interface DebugOverlayData {
   tick: number;
@@ -18,6 +25,14 @@ export interface DebugOverlayData {
   p1: { x: number; y: number };
   p2: { x: number; y: number };
   shuttle?: DebugOverlayShuttleData | undefined;
+  /** Swing phase and kind of P1 and P2; omitted until a rally sim provides them. */
+  swings?: readonly [Readonly<DebugOverlaySwingData>, Readonly<DebugOverlaySwingData>] | undefined;
+}
+
+/** "<phase> · <kind>" text of a swing; the kind is omitted while READY. Runs only when the swing changes. */
+function formatSwing(swing: Readonly<DebugOverlaySwingData>): string {
+  const phaseText = VI.debug.swingPhases[swing.phase];
+  return swing.kind === null ? phaseText : `${phaseText} · ${VI.debug.swingKinds[swing.kind]}`;
 }
 
 /** DOM debug overlay controller toggled via `?debug=1` or `F3`. */
@@ -78,6 +93,8 @@ export function createDebugOverlay(container: HTMLElement, initialVisible: boole
   const shuttlePosVal = createRow(VI.debug.shuttlePosLabel, 'debug-shuttle-pos', '—');
   const shuttleSpeedVal = createRow(VI.debug.shuttleSpeedLabel, 'debug-shuttle-speed', '—');
   const shuttleStateVal = createRow(VI.debug.shuttleStateLabel, 'debug-shuttle-state', '—');
+  const swingP1Val = createRow(VI.debug.swingP1Label, 'debug-swing-p1', VI.debug.swingNone);
+  const swingP2Val = createRow(VI.debug.swingP2Label, 'debug-swing-p2', VI.debug.swingNone);
 
   container.appendChild(root);
 
@@ -93,6 +110,10 @@ export function createDebugOverlay(container: HTMLElement, initialVisible: boole
   let lastShuttlePos = '';
   let lastShuttleSpeed = '';
   let lastShuttleState = '';
+  let lastSwingP1Phase: SwingPhase | null = null;
+  let lastSwingP1Kind: SwingKind | null = null;
+  let lastSwingP2Phase: SwingPhase | null = null;
+  let lastSwingP2Kind: SwingKind | null = null;
 
   const setVisible = (nextVisible: boolean): void => {
     visible = nextVisible;
@@ -167,7 +188,7 @@ export function createDebugOverlay(container: HTMLElement, initialVisible: boole
     }
 
     const nextShuttleSpeed = shuttle
-      ? `${shuttle.speedMs.toFixed(1)} m/s (${(shuttle.speedMs * 3.6).toFixed(0)} km/h)`
+      ? `${shuttle.speedMs.toFixed(1)} m/s (${(shuttle.speedMs * KMH_PER_MS).toFixed(0)} km/h)`
       : '—';
     if (nextShuttleSpeed !== lastShuttleSpeed) {
       lastShuttleSpeed = nextShuttleSpeed;
@@ -178,6 +199,33 @@ export function createDebugOverlay(container: HTMLElement, initialVisible: boole
     if (nextShuttleState !== lastShuttleState) {
       lastShuttleState = nextShuttleState;
       shuttleStateVal.textContent = nextShuttleState;
+    }
+
+    const swings = data.swings;
+    const swing1 = swings?.[0];
+    if (swing1 === undefined) {
+      if (lastSwingP1Phase !== null) {
+        lastSwingP1Phase = null;
+        lastSwingP1Kind = null;
+        swingP1Val.textContent = VI.debug.swingNone;
+      }
+    } else if (swing1.phase !== lastSwingP1Phase || swing1.kind !== lastSwingP1Kind) {
+      lastSwingP1Phase = swing1.phase;
+      lastSwingP1Kind = swing1.kind;
+      swingP1Val.textContent = formatSwing(swing1);
+    }
+
+    const swing2 = swings?.[1];
+    if (swing2 === undefined) {
+      if (lastSwingP2Phase !== null) {
+        lastSwingP2Phase = null;
+        lastSwingP2Kind = null;
+        swingP2Val.textContent = VI.debug.swingNone;
+      }
+    } else if (swing2.phase !== lastSwingP2Phase || swing2.kind !== lastSwingP2Kind) {
+      lastSwingP2Phase = swing2.phase;
+      lastSwingP2Kind = swing2.kind;
+      swingP2Val.textContent = formatSwing(swing2);
     }
   };
 
