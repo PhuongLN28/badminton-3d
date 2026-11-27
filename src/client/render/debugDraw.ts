@@ -30,6 +30,12 @@ export interface DebugDrawHandle {
    */
   beginFlight(startPos: ReadonlyVec3, predictedLand: { x: number; z: number } | null): void;
   /**
+   * Update only the predicted floor landing ring `(x, z)` in meters without clearing
+   * the recorded trajectory path or deceleration dots (used on mid-rally returns).
+   * @param predictedLand Predicted floor landing point `(x, z)` in meters, or `null` to hide.
+   */
+  updatePredictedLanding(predictedLand: { x: number; z: number } | null): void;
+  /**
    * Record one simulated flight position without heap allocations.
    * Places a debug dot every `SHUTTLE_DEBUG_DOT_INTERVAL_S` (0.1 s).
    * @param pos Current shuttle world position in meters.
@@ -181,6 +187,19 @@ export function createDebugDraw(): DebugDrawHandle {
     landingRing.visible = false;
   };
 
+  const updatePredictedLanding = (predictedLand: { x: number; z: number } | null): void => {
+    if (predictedLand && Number.isFinite(predictedLand.x) && Number.isFinite(predictedLand.z)) {
+      predictedRing.position.set(
+        predictedLand.x,
+        COURT_SURFACE_Y + PREDICTED_RING_Y_OFFSET_M,
+        predictedLand.z,
+      );
+      predictedRing.visible = true;
+    } else {
+      predictedRing.visible = false;
+    }
+  };
+
   const beginFlight = (
     startPos: ReadonlyVec3,
     predictedLand: { x: number; z: number } | null,
@@ -196,16 +215,7 @@ export function createDebugDraw(): DebugDrawHandle {
     dotsMesh.visible = false;
     landingRing.visible = false;
 
-    if (predictedLand && Number.isFinite(predictedLand.x) && Number.isFinite(predictedLand.z)) {
-      predictedRing.position.set(
-        predictedLand.x,
-        COURT_SURFACE_Y + PREDICTED_RING_Y_OFFSET_M,
-        predictedLand.z,
-      );
-      predictedRing.visible = true;
-    } else {
-      predictedRing.visible = false;
-    }
+    updatePredictedLanding(predictedLand);
 
     if (Number.isFinite(startPos.x) && Number.isFinite(startPos.y) && Number.isFinite(startPos.z)) {
       appendPathPoint(startPos.x, startPos.y, startPos.z);
@@ -262,6 +272,7 @@ export function createDebugDraw(): DebugDrawHandle {
     group,
     setDebugVisible,
     beginFlight,
+    updatePredictedLanding,
     recordFlightStep,
     markLanding,
     clearTrajectory,
