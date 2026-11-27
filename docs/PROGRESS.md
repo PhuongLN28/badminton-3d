@@ -7,9 +7,9 @@
 
 | Mục | Giá trị |
 |---|---|
-| Phase đang làm | — (chờ bắt đầu Phase 3) |
-| Phase đã xong | 2 |
-| Tag gần nhất | `phase-2-done` |
+| Phase đang làm | — (chờ bắt đầu Phase 4) |
+| Phase đã xong | 3 |
+| Tag gần nhất | `phase-3-done` |
 | Lệnh chạy thử | `npm install && npm run dev` rồi mở http://localhost:5173/?debug=1 |
 
 ## Mục lục phase
@@ -19,13 +19,128 @@
 | 0 Khởi tạo | ✅ | 6/6 | 2/2 | 2026-11-27 |
 | 1 Sân + hộp | ✅ | 8/8 | 3/3 | 2026-11-27 |
 | 2 Vật lý cầu | ✅ | 18/18 | 2/2 | 2026-11-27 |
-| 3 Cú đánh | ⬜ | – | – | – |
+| 3 Cú đánh | ✅ | 20/20 | 2/2 (chập chờn khi máy tải nặng, xem nợ) | 2026-11-27 |
 | 4 Luật + HUD | ⬜ | – | – | – |
 | 5 AI | ⬜ | – | – | – |
 | 6 Đồ họa + âm thanh | ⬜ | – | – | – |
 | 7 Online | ⬜ | – | – | – |
 
 <!-- Ký hiệu: ⬜ chưa làm · 🟨 đang làm · ✅ xong · ⚠️ xong nhưng còn lỗi đã biết -->
+
+---
+
+### Phase 3 — Vung vợt và các kiểu đánh — 2026-11-27
+
+**Đã làm**
+- Sửa môi trường (`0baed8b`): thêm `CLAUDE.md` và `.gitignore` các worktree của agent. Phát hiện `vitest` chạy 0 test khi thư mục làm việc có chữ ổ đĩa `c:` viết thường, nên mọi lệnh phải `cd` bằng đường dẫn có `C:` viết HOA.
+- Gói WP1 (`6a7e589`): bổ sung toàn bộ hằng số vung vợt, hitbox, bảng cú đánh, timing, solver vào `src/shared/config.ts`, kiểu mới trong `src/shared/types.ts`, khung hook `tossShuttle`/`setPlayerX` trong `src/client/testHooks.ts`, tắt `DEBUG_AUTO_RETURN = false`, ghi quyết định D-011..D-020 vào `docs/DECISIONS.md`.
+- Gói WP2b (`c030609`): phân loại cú đánh đủ 12 ô GAME_SPEC §5.3 trong `src/shared/shots/shotTypes.ts`; chấm timing PERFECT/GOOD/OK, aim, kẹp đích và nhiễu Irwin–Hall trong `src/shared/shots/timing.ts` (`P3-U05`, `P3-U12`, `P3-U13`).
+- Gói WP2a (`a46c86c`): state machine vung vợt READY → WINDUP → ACTIVE → RECOVERY trong `src/shared/player/swing.ts`; chọn kiểu vung bằng dự đoán độ cao, hitbox swept sphere chỉ đánh phía sân mình, khóa chạm 2 lần trong `src/shared/player/hitbox.ts` (`P3-U01`, `P3-U03`, `P3-U04`, `P3-U15`).
+- Gói WP2c (`2df204c`): shot solver bisection 3 chế độ `FIXED_ELEV` / `FIXED_SPEED` / `TWO_POINT` kèm kiểm tra lưới (assist) trong `src/shared/shots/shotSolver.ts`, `flightProbe.ts`, `solverSearch.ts`, `solverModes.ts` (`P3-U06`..`P3-U11`, `P3-U20`).
+- Gói WP4a (`f53ea15`): vẽ hitbox debug (`src/client/render/hitboxDebug.ts`), popup tên cú + km/h + timing (`src/client/ui/shotPopup.ts`), thông tin vung vợt trên `debugOverlay.ts`, chuỗi tiếng Việt trong `vi.ts`, `styles.css`.
+- Sửa độ ổn định `P2-U18` (`dc43ebe`, `68f5ff8`): đo giá trị nhỏ nhất của 5 mẫu thay cho 1 mẫu, giữ nguyên ngưỡng 20 ms (D-021).
+- Gói WP3 (`ad32006`): pipeline `src/shared/shots/resolveShot.ts` (chọn cú, aim, timing, nhiễu, giải cú đánh), lõi pha cầu `src/shared/match/rallySim.ts` + `rallyState.ts` (tiền thân `matchSim` của Phase 4), chuyển 2 hằng cục bộ vào `config.ts` (`P3-U02`, `P3-U14`, `P3-U16`..`P3-U19`).
+- Gói WP4b (`7affca3`): tách `src/client/simHost.ts` khỏi `src/client/main.ts` (444 → 322 dòng), nối vung vợt/hit/popup vào client, phím `T` tung cầu tập, hook `tossShuttle`/`setPlayerX`, e2e `tests/e2e/phase3.spec.ts` (`P3-E01`, `P3-E02`).
+- Sửa lỗi do Reviewer (`e44abe5`, `008f95c`): chấp nhận phần đoạn cầu ở sân mình khi đoạn cắt lưới trong hitbox (lỗi Nhỏ #1), rồi đẩy điểm chạm sát mặt lưới `HIT_NET_CONTACT_INSET_M = 0.001 m` vào sân mình để solver luôn thấy cầu cắt lưới (sửa thoái lùi lỗi Lớn do `e44abe5` gây ra), xem D-023.
+- Reviewer: ĐẠT toàn bộ Phase 3 (`0baed8b..7affca3`). Review `e44abe5` CHƯA ĐẠT (lỗi Lớn: điểm chạm x = 0 làm solver hỏng), đã sửa ở `008f95c`; review `008f95c` ĐẠT. Audit kiểm tĩnh đạt: không có chuỗi cấm trong `src/shared`, không `.only`/`.skip`, fixture không đổi, đủ 22 ID.
+
+**Kết quả test**
+
+| ID | Mô tả ngắn | Kết quả | Ghi chú (số đo thực tế) |
+|---|---|---|---|
+| P3-U01 | Dòng thời gian vung | ✅ | `120 Hz`: WINDUP/ACTIVE/RECOVERY = `6/24/30` tick; ACTIVE tick `6..29` (`0.05 → 0.25 s`), READY ở tick `60` (`0.50 s`); nhấn lần 2 ở ACTIVE/RECOVERY trả `false`, timeline không đổi |
+| P3-U02 | Hitbox bật/tắt đúng cửa sổ ACTIVE | ✅ | A: đúng `1 hit` (nhấn tick 32, ACTIVE từ 38, hit tick 50) dù cầu nằm trong hitbox nhiều tick; B (cầu 60 m/s qua hitbox lúc WINDUP): `0 hit`; C (không nhấn): `0 hit`; D (cầu chậm 3 m/s qua lưới, P1 `x = −0.35`, mid): `1 hit` tick 41, `contact.x = −0.001`, BLOCK rơi `x = 1.500`, `0 netHit` |
+| P3-U03 | Swept sphere, cầu 60 m/s | ✅ | Hai đầu mút cách tâm `0.52355` và `0.50990 m` (> r = 0.5), phân số vào swept `0.114980`; tích hợp `stepShuttle` 60 m/s (`0.4752 m/tick`): `f = 0.113534`, điểm chạm cách tâm đúng `0.5 m` |
+| P3-U04 | Chọn kiểu vung theo độ cao dự đoán | ✅ | `2.5 / 1.4 / 0.6 m` → overhead / mid / underhand; biên `1.8` → overhead, `1.0` → mid, `0.99` → underhand; dự đoán `+0.15 s` từ `y = 2.61 / 1.51 / 0.71` ra `2.50049 / 1.40049 / 0.60049`; cầu idle/grounded → `mid` (D-017) |
+| P3-U05 | Bảng phân loại GAME_SPEC §5.3 | ✅ | Đủ 12 ô; biên `2.2 m` → SMASH, `2.2 − 1e-6` → DRIVE; `\|x\| = 2.5` → NET_SHOT, `2.5 + 1e-6` → BLOCK; `x` âm dùng giá trị tuyệt đối |
+| P3-U06 | Solver CLEAR | ✅ | `(−5.0, 2.6)`, 45°, đích 6.0: `46.845 m/s` (fixture `46.9 ± 0.3`), rơi `5.9984` (± 5 cm), `adjusted = false`, P2 đối xứng từng bit |
+| P3-U07 | Solver DROP | ✅ | `(−4.5, 2.6)`, 10°, đích 1.2: `11.3137 m/s` (± 0.1), rơi `1.2011` |
+| P3-U08 | Solver SMASH + lưới | ✅ | `(−4.0, 2.7)`, 60 m/s, yêu cầu đích 3.0: `adjusted = true`, đích thực tế `4.4` (∈ [4.3, 4.5]), qua lưới `1.62434` (≥ 1.624), rơi `4.3996`, góc `−14.44°` |
+| P3-U09 | Solver NET_SHOT (TWO_POINT) | ✅ | `(−0.5, 1.2)`, clearance 0.08, đích 0.5: `67.256°` (± 0.5), `3.4584 m/s` (± 0.05), qua lưới `1.60223` ∈ [1.584, 1.624], rơi `0.50104` |
+| P3-U10 | Solver LOW_SERVE (TWO_POINT) | ✅ | `(−2.2, 1.05)`, clearance 0.10, đích 2.3: `26.152°`, `9.1600 m/s`, qua lưới `1.62526`, rơi `2.29923` (> 1.98) |
+| P3-U11 | Solver BLOCK (TWO_POINT) | ✅ | `(−3.0, 0.8)`, clearance 0.20, đích 1.5: `37.776°`, `9.3754 m/s`, qua lưới `1.72427`, rơi `1.50109` |
+| P3-U12 | Chấm timing | ✅ | `0.10` → PERFECT; `0.03`, `0.17` → GOOD; `0.0`, `0.20` → OK; `0.065`, `0.135` → PERFECT; ±1e-6 ngoài biên đổi hạng đúng; `offset(0.03) < 0` |
+| P3-U13 | Phân phối nhiễu Irwin–Hall | ✅ | Seed `20261127`, 2000 mẫu σ = 0.6: mean `0.019980` (± 0.05), std `0.606804` (± 10%) |
+| P3-U14 | PERFECT không có nhiễu | ✅ | 100 cú CLEAR PERFECT cùng RNG tiến dần: `land.x` và `v0` giống hệt từng bit; đối chứng GOOD cho ≥ 2 giá trị khác (D-022) |
+| P3-U15 | Chỉ đánh phía sân mình | ✅ | Cầu ở `x = +0.1`: P1 không đánh được (đúng ROADMAP); đoạn cắt lưới từ sân đối phương vào sân mình trong hitbox → hit tại `x = −facing·0.001`; cầu 60 m/s qua lưới (cả hai đầu mút ngoài hitbox) vẫn bắt được; từ điểm chạm đó `solveShot`: CLEAR/DRIVE/LIFT/DROP/SMASH `solved = true` (D-023) |
+| P3-U16 | Chống chạm 2 lần | ✅ | Cầu đặt lại vào hitbox khi swing còn ACTIVE, hoặc vung lại sau READY khi `lastHitter = 0`: `0 hit` thêm; đối chứng `spawnRallyShuttle` (reset khóa): `1 hit` |
+| P3-U17 | Aim và kẹp đích | ✅ | CLEAR `6.0`: aim `+1` → `5.4`, `−1` → `6.5` (6.6 bị kẹp); SMASH `6.0` aim `−1` → `6.5`; NET_SHOT `0.5` aim `+1` → `0.2`; pipeline: `targetDepth = 6.5`, `noisyTargetDepth ≠ 6.5` (nhiễu cộng sau khi kẹp) |
+| P3-U18 | Smash nhảy | ✅ | SMASH PERFECT đứng `(−4, 2.7)`: `63.0 m/s`, `−14.438°`; nhảy `(−4, 3.25)`: `68.04 m/s`, `−18.087°`; tỷ lệ tốc độ `1.08` (9 chữ số), góc nhảy dốc hơn |
+| P3-U19 | Sự kiện `hit` | ✅ | Đủ 12 trường (GAME_SPEC §5.8 + `timingOffsetS`); SMASH overhead PERFECT, contact `(−2.4, 2.8)`, `226.8 km/h = \|v0\|·3.6` (9 chữ số) |
+| P3-U20 | Hiệu năng solver | ✅ | Trung vị 100 lần (ms), nhiều lần chạy khi máy bận: FIXED_ELEV `0.64–1.40` (cả bộ `1.15`) < 3; FIXED_SPEED + assist `0.76–1.29` (cả bộ `1.48`) < 3; TWO_POINT `1.03–2.14` (cả bộ `2.40`) < 6. Bản chưa tối ưu TWO_POINT: `4.33–5.60` |
+| P3-E01 | Tung cầu vào vùng overhead, `swing: 'power'` đúng tick | ✅ | `tossShuttle(0)`, cầu vào hitbox ở tick `136`, nhấn power tại `N−19`: SMASH PERFECT `226.8 km/h`, contact `(−2.250, 2.777)`, rơi `x = 4.499` bên P2, `0 console.error` |
+| P3-E02 | Rally tự động 6 cú bằng hook | ✅ | 6 hit xen kẽ `[0,1,0,1,0,1]`, đều CLEAR PERFECT: `81 / 191 / 204 / 205 / 205 / 205 km/h`, tọa độ hữu hạn, `0 console.error`. Có lần timeout khi máy tải nặng (xem nợ kỹ thuật) |
+
+Tổng: `npm run check` 52/52 xanh (P0: 6 + P1: 8 + P2: 18 + P3: 20, 18 file test, xác nhận lại trên `008f95c`) · `npm run test:e2e` 9 test (P0: 2 + P1: 3 + P2: 2 + P3: 2), **chập chờn khi máy tải nặng**: audit trên `7affca3` (máy rảnh, dùng lại dev server) 9/9 ba lần liên tiếp (`25.5 / 24.6 / 22.9 s`); agent WP4b (cổng phụ) 9/9 ba lần nhưng hai lần đầu fail `7/9` và `4/9` do timeout; audit trên `e44abe5` (máy bận vì Reviewer chạy song song, còn sót một tiến trình Vite) `8/9` (P1-E02 timeout lúc dựng trang), `9/9`, `6/9` (P0-E01 `waitForTimeout` vượt 30 s, P2-E02 "Target page closed", P3-E02 `page.evaluate` timeout); mọi lỗi đều là timeout, không có assertion sai, không có `console.error`; **chưa chạy lại e2e trên `008f95c`** (commit này chỉ đổi hitbox, config và unit test) · `npm run build` xanh (`166.67 kB` gzip, Phase 2: `159.83 kB`) · `console.error: 0` khi tải `/?debug=1&test=1`
+
+**Git**: commit code cuối `008f95c` (`P3: inset net-plane contacts into own court so the solver sees the net crossing`) · commit chốt phase và tag `phase-3-done` đã push ✅
+
+**Kiểm tra trên trình duyệt** (Chrome, GPU Intel Iris Xe, 60 FPS khi tab có focus; `http://localhost:5173/?debug=1&test=1`)
+- [x] Thử đủ 3 nút ở cả 3 độ cao (hook + phím thật `T`/`J`/`K`/`L`, P2 phím `,`): ra SMASH, CLEAR, DROP, NET_SHOT, LIFT, DRIVE, BLOCK; popup đúng tên cú + km/h + timing (vd. "DROP 13 km/h / PERFECT!", "SMASH 227 km/h / PERFECT!").
+- [x] Net shot GOOD từ `x = −1.2` rơi `x = 0.201` (qua lưới rồi rơi ngay); drop PERFECT rơi `1.400` (trước vạch giao cầu ngắn `1.98`); smash PERFECT `227 km/h` cắm dốc, rơi `4.499`.
+- [x] Smash aim về lưới (đích `3.7`) từ `x = −6.0 / −5.0 / −4.0`: `adjusted = true`, đích bị đẩy ra `4.30 / 4.50 / 4.20`.
+- [x] Timing: SMASH GOOD lệch `0.4–0.6 m` (rơi `3.89–4.72`); DROP OK (sớm `0.074 s`) vào lưới; PERFECT rơi đúng đích.
+- [x] Debug (`F3`): chỉ hitbox của kiểu vung đang dùng chuyển xanh trong ACTIVE, các hitbox còn lại xám; overlay "Đang đánh · Trên cao"; quỹ đạo debug + chấm `0.1 s` + vòng dự đoán điểm rơi cập nhật sau mỗi cú.
+- [x] Di chuyển: chạy hết cỡ vào lưới dừng ở `±0.35`; nhảy đỉnh `0.551 m`; lùi ra `−6.33 / 6.02` bình thường.
+- [x] 0 `console.error` khi tải lại trang.
+- Ảnh: `screenshot-1795773491361-0.jpg` (hitbox xanh khi ACTIVE), `screenshot-1795773504228-1.jpg` (quỹ đạo smash), `screenshot-1795773517434-2.jpg` (popup DROP PERFECT), cả ba nằm trong `C:\Users\Admin\AppData\Local\Temp\claude-chrome-screenshots-1RIQN4\`; smoke test WP4b: `smoke_active_hitbox.png`, `smoke_popup_smash.png`; GIF `phase3_browser_check.gif` (thư mục Downloads của Chrome). Các tệp này nằm ngoài repo.
+- **Giới hạn của lần kiểm này**: mục "5 phút tự chơi" chỉ làm được gần đúng. Khoảng 10 cú bằng phím thật (công cụ gửi phím trễ `0.5–1 s` mỗi lần và không giữ phím được) cộng khoảng 40 cú tất định qua hook. Cần người dùng tự chơi thật để đánh giá cảm giác.
+
+**Người dùng nên tự thử**
+- Chạy `npm run dev`, mở `http://localhost:5173/?debug=1`, bấm `T` để tung cầu từ tay P1, rồi bấm `J` / `K` / `L` đúng lúc cầu rơi vào tầm vợt: cầu ở cao ra CLEAR / SMASH / DROP, cầu ở giữa ra LIFT / DRIVE / BLOCK. Xem popup tên cú, km/h và PERFECT / GOOD / SỚM / MUỘN.
+- Đứng sát lưới rồi bấm `L` khi cầu rơi chậm để thử NET_SHOT (cầu phải qua mép lưới rồi rơi ngay). Chú ý điều số 2 ở phần cảm giác chơi bên dưới.
+- Chạy ra cuối sân (`x` khoảng `−5` đến `−6`), giữ `D` (về phía lưới) rồi bấm `K` khi cầu ở cao: smash phải cắm dốc, nhanh, bị đẩy sâu hơn để qua lưới.
+- Đánh sớm/muộn để thấy cú ra ngoài hoặc vào lưới; đánh PERFECT thì rơi đúng đích.
+- Chơi phía P2 bằng phím `←` / `→` / `↑` và `,` `.` `/` (hoặc Numpad 1–3): cầu phải ở phía sân P2 (sau khi P1 đánh sang).
+- Bấm `F3` quan sát hitbox chuyển xanh trong 0.2 s khi vung, và quỹ đạo debug sau mỗi cú.
+- Chơi tự do vài phút và cho biết cảm giác 3 điều bên dưới có đáng sửa không.
+
+**Cảm giác chơi chưa ổn (chưa sửa, chờ người dùng quyết)**
+1. **Popup SỚM/MUỘN ngược với hành động người chơi.** Bấm muộn (cầu đã nằm trong hitbox khi ACTIVE bắt đầu) thì `contactTime = 0` nên ra OK "SỚM": 4/4 lần bấm phím thật đều có offset `−0.100 s`. Bấm sớm 8 tick (lead 26) ra offset `+0.060 s` (GOOD; nếu là OK sẽ hiện "MUỘN"). Nhãn mô tả vị trí điểm chạm trong cửa sổ ACTIVE, không mô tả việc người chơi bấm sớm hay muộn.
+2. **Net shot không thể PERFECT với cầu rơi từ cao.** Bấm đúng nhịp (lead 18) thì độ cao dự đoán ≥ 1.0 m nên vung `mid` ra BLOCK OK (contact `1.63`). NET_SHOT chỉ ra khi bấm muộn hơn: lead 14 GOOD rơi `0.20`; lead 10 và 6 OK; lead 2 rơi về sân mình `x = −0.68`.
+3. **Cú thấp tay lỗi nhiều.** DRIVE thấp tay contact `0.47 m` ở `x = −2.25` vào lưới (`h = 1.24`) dù assist `+20°`; DROP OK vào lưới; khoảng 16% NET_SHOT OK có đích sau nhiễu ≤ 0 (Reviewer đo). Giải lại TWO_POINT sau nhiễu có lúc `8–9 ms`, vượt ngân sách 6 ms của GAME_SPEC §14.
+
+**Lỗi đã biết / nợ kỹ thuật**
+- **E2E chập chờn khi máy tải nặng** (D-024): timeout 30 s ở P0-E01, P1-E02, P2-E02, P3-E02; thời gian chạy cùng một test dao động `1.8 → 47 s`. Chưa tìm ra nguyên nhân (chẩn đoán dừng giữa chừng theo yêu cầu người dùng). Giả thuyết chưa kiểm: Vite khởi động lạnh, 4 worker Chromium WebGL tranh CPU, test chờ thời gian thực, test nặng chiếm worker. Lần sau: chạy e2e khi máy rảnh, không chạy agent song song; hướng sửa cần cân nhắc là `workers` cố định, làm nóng Vite, bỏ chờ thời gian thực.
+- **BLOCK sát lưới thành lốp gần thẳng đứng**: contact `(−0.001, 1.5925)` → `34.4 m/s`, góc khoảng 85°, đỉnh khoảng `9 m`, rơi `1.50 m`, do TWO_POINT phải vượt `NET + 0.20` khi chỉ cách lưới 1 mm. Không phạm luật; bản `7affca3` cũng ra lốp `16.4 m/s`. Đổi hành vi này cần một D-xxx mới (lệch GAME_SPEC §5.4/§5.5).
+- BLOCK/NET_SHOT từ contact sát lưới mà cao hơn `NET + clearance`: `solved = false`, góc bị kẹp `−30°` (giới hạn TWO_POINT có sẵn).
+- Hiệu năng solver ở ca có nhiễu: TWO_POINT NET_SHOT đích `0.05 m` không assist trung vị `5.88 ms`, max `8.33 ms`; `resolveShot` NET_SHOT OK p95 `7.76 ms`, max `9.39 ms`. `P3-U20` chỉ đo ca chuẩn.
+- Sự kiện `swing` phát ở tick nhấn (đầu WINDUP), trong khi SFX `swing` của GAME_SPEC §12 kích hoạt lúc bắt đầu ACTIVE: Phase 6 cần dời `0.05 s`.
+- `GAME_SPEED = 1.3` làm tròn tick vung thành `5/18/23` (`0.054/0.195/0.249 s`), tâm ACTIVE lệch; `swingTicksForOut` tính lại mỗi tick nên đổi tốc độ giữa lúc vung sẽ đổi timeline.
+- Bảng `lil-gui` tắt lực cản/trọng lực: `stepShuttle` dùng `rally.physicsCfg`, còn solver/probe luôn dùng `DEFAULT_PHYSICS_CONFIG`, nên đánh cầu ở chế độ vật lý tùy chỉnh sẽ lệch đích (chỉ ảnh hưởng debug).
+- Tick cầu chạm sàn thì bỏ qua dò hit (`src/shared/match/rallySim.ts` chỉ dò khi cầu còn `flying`); ảnh hưởng gần 0, Phase 4 cần biết.
+- `P3-U18` kiểm hệ số `×1.08` ở mức `resolveShot` (cờ `airborne` truyền tay), chưa có test `stepRally` chứng minh `airborne = !grounded`.
+- `src/client/simHost.ts` có `phase: 'RALLY'` và `score` cứng, sẽ thay khi có `matchSim` (Phase 4).
+- GAME_SPEC §13.2 chưa ghi 2 hook mới `tossShuttle`, `setPlayerX` (đã có D-018); chờ người dùng quyết có cập nhật spec không.
+- `npx prettier --check` báo cảnh báo trên nhiều file (CRLF do `core.autocrlf=true`), có sẵn từ trước, không nằm trong `npm run check`.
+- Một số commit có trailer `Co-Authored-By: Claude Sonnet 5.5` (model thực của agent Thực thi) thay vì Opus 5.5.
+
+**Lệch so với spec** (chi tiết trong DECISIONS.md)
+- `D-011`: smash khi nhảy = `60 × 1.08 = 64.8 m/s` (số `65` trong §5.4 coi là làm tròn), để khớp P3-U18.
+- `D-012`: hệ số tốc độ theo timing (`1.05 / 1.00 / 0.90`) chỉ áp cho SMASH và DRIVE.
+- `D-013`: nhiễu timing cộng vào đại lượng là đầu vào của từng chế độ giải; đích sau nhiễu không kẹp lại; mỗi cú rút đúng 12 số uniform từ RNG.
+- `D-014`: đích kẹp trong `[0.2, 6.5] m` tính từ lưới (thêm cận dưới `TARGET_MIN_DEPTH = 0.2`).
+- `D-015`: DRIVE thấp tay sát lưới vẫn có thể vào lưới, giữ đúng giới hạn assist `+20°` của spec.
+- `D-016`: TWO_POINT, đích không đạt được ở góc ≥ 45° coi là "quá cao" để bisection chạy đúng hướng.
+- `D-017`: chấm `contactTime` theo phân số sub-tick của swept sphere, `TIME_EPSILON_S = 1e-9`, kiểu vung dự phòng `mid`, hitbox tính từ chân.
+- `D-018`: thêm trường `hit.timingOffsetS` và hook test `tossShuttle`, `setPlayerX`.
+- `D-019`: kẹp tốc độ solver về `120 m/s`; assist FIXED_SPEED tìm nhị phân trên số nguyên `k`.
+- `D-020`: phím `T` tung cầu tập với `vy = 10 m/s`; tách `rallySim.ts` và `simHost.ts`.
+- `D-021`: `P2-U18` đo giá trị nhỏ nhất của 5 mẫu thay cho 1 mẫu, giữ ngưỡng 20 ms.
+- `D-022`: cú PERFECT (σ = 0) dùng nguyên nghiệm lý tưởng, không giải lại không-assist; RNG vẫn rút đủ 12 số.
+- `D-023`: đoạn cầu cắt lưới trong hitbox được nhận phần ở sân mình; điểm chạm sát lưới đẩy vào sân mình `0.001 m`.
+- `D-024`: chốt Phase 3 khi e2e còn chập chờn dưới tải nặng, ghi vào nợ kỹ thuật (lệch Phase Gate).
+
+**Đề xuất refactor (chưa làm)**
+- `src/shared/config.ts` 571 dòng: tách bảng cú/solver/timing sang file con (vẫn nằm trong config, re-export).
+- `src/shared/physics/shuttle.ts` 352 dòng và `src/client/main.ts` 322 dòng: nhỉnh hơn mức nên dưới khoảng 300.
+- Đã làm trong Phase 3 vì cần cho phase này: tách `simHost.ts` khỏi `main.ts` (444 → 322 dòng), tách `rallyState.ts`, `solverSearch.ts`, `solverModes.ts`.
+
+**Chuyển sang phase sau**
+- Phase 4: `rules/rallyJudge.ts`, `rules/scoring.ts`, `rules/serve.ts` (gồm `serviceCourt`), `match/stateMachine.ts`, `match/matchSim.ts` bọc `rallySim`; thay phím `T` bằng giao cầu thật; HUD, menu tối thiểu, tạm dừng; `simHost.ts` bỏ `phase` và `score` cứng.
+- Xử lý tick cầu chạm sàn đang bỏ qua dò hit trong `rallySim.ts`; thêm test `stepRally` cho `airborne = !grounded`.
+- Nếu người dùng quyết định sửa, xử lý 3 điều cảm giác chơi ở phần trên (nhãn SỚM/MUỘN, NET_SHOT PERFECT, cú thấp tay); cập nhật GAME_SPEC §13.2 cho 2 hook mới nếu được duyệt.
+- Chẩn đoán e2e chập chờn khi máy rảnh (D-024) trước khi thêm e2e của Phase 4.
 
 ---
 
