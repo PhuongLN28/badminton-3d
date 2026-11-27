@@ -130,3 +130,10 @@
 - **Quyết định**: Chọn B. `PRACTICE_TOSS_VY = 10 m/s` là tạm thời, sẽ thay bằng giao cầu ở Phase 4.
 - **Hệ quả**: `config.ts`; file mới `rallySim.ts`, `simHost.ts`; `main.ts` thu gọn về render và phản ứng sự kiện. Ghi vào PROGRESS.md khi chốt phase.
 - **Người duyệt**: Đã duyệt cùng plan Phase 3, người dùng duyệt ngày 2026-11-27.
+
+### D-021 — P2-U18 đo trung vị 5 mẫu thay cho 1 mẫu — 2026-11-27 — Trạng thái: Đã duyệt
+- **Bối cảnh**: P2-U18 đo một mẫu duy nhất 10 000 lần `stepShuttle` và yêu cầu `< 20` ms. Bình thường mẫu này đo được 1.9–2.9 ms, nhưng khi máy tải nặng (nhiều agent cùng chạy `npm ci` / vitest, vitest chạy song song nhiều file) đã có lần đo ra 31.77 ms, làm test đỏ ngẫu nhiên khoảng 1/3 số lần chạy. `shuttle.ts` không đổi kể từ Phase 2, nên nguyên nhân là nhiễu lập lịch CPU chứ không phải hồi quy hiệu năng.
+- **Phương án đã cân nhắc**: A: giữ nguyên một mẫu và chỉ cho phép một tiến trình test chạy tại một thời điểm / B: đo 5 mẫu, mỗi mẫu 10 000 bước, lấy trung vị rồi so với ngưỡng.
+- **Quyết định**: Chọn B. Giữ nguyên ngưỡng 20 ms, số bước mỗi mẫu (10 000) và phần làm nóng; không `retry`, không skip. Trung vị loại bỏ được mẫu bị nhiễu lẻ, nhất quán với cách đo trung vị của P3-U20.
+- **Hệ quả**: chỉ `tests/unit/physics/shuttle.test.ts` (khối P2-U18) đổi; tên test và ID giữ nguyên. Một hồi quy hiệu năng thật vẫn làm trung vị vượt 20 ms nên test vẫn bắt được.
+- **Người duyệt**: người dùng (trong chat ngày 2026-11-27).

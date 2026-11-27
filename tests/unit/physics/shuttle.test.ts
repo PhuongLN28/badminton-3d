@@ -356,14 +356,22 @@ describe('Vật lý quả cầu RK4 (shuttle.ts)', () => {
       stepShuttle(s, DT, cfg, scratch, i + 1);
     }
 
-    const startMs = performance.now();
-    for (let i = 0; i < 10_000; i += 1) {
-      s.pos.y = 50;
-      s.vel.x = 30;
-      s.vel.y = 15;
-      stepShuttle(s, DT, cfg, scratch, i + 1);
+    // D-021: median of 5 samples damps isolated CPU scheduling spikes on a busy
+    // machine. Threshold and steps per sample are unchanged.
+    const sampleCount = 5;
+    const samplesMs: number[] = [];
+    for (let n = 0; n < sampleCount; n += 1) {
+      const startMs = performance.now();
+      for (let i = 0; i < 10_000; i += 1) {
+        s.pos.y = 50;
+        s.vel.x = 30;
+        s.vel.y = 15;
+        stepShuttle(s, DT, cfg, scratch, i + 1);
+      }
+      samplesMs.push(performance.now() - startMs);
     }
-    const elapsedMs = performance.now() - startMs;
-    expect(elapsedMs).toBeLessThan(20);
+    samplesMs.sort((a, b) => a - b);
+    const medianMs = samplesMs[Math.floor(sampleCount / 2)] ?? Number.POSITIVE_INFINITY;
+    expect(medianMs).toBeLessThan(20);
   });
 });
