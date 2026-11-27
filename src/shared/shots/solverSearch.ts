@@ -3,17 +3,12 @@ import {
   SOLVER_ANGLE_MIN_DEG,
   SOLVER_LAND_TOL,
   SOLVER_MAX_ITER,
+  SOLVER_WARM_START_HALF_WIDTH_RATIO,
 } from '../config';
 import type { Vec3 } from '../types';
 import { probeLandingX } from './flightProbe';
 
 const DEG_TO_RAD = Math.PI / 180;
-
-/**
- * Half-width of the first bracket tried around a warm-start speed guess, as a fraction of the guess
- * (dimensionless). The bracket is validated and widened by doubling when it misses the solution.
- */
-const WARM_START_HALF_WIDTH_RATIO = 0.05;
 
 /** Outcome of a landing search. */
 export type SearchStatus = 'OK' | 'SHORT' | 'LONG' | 'MAXITER';
@@ -131,7 +126,7 @@ export function searchSpeedNear(
   out: SearchResult,
 ): void {
   const landAt = speedLanding(angleDeg, targetX, dtS);
-  let half = Math.max(guessSpeed * WARM_START_HALF_WIDTH_RATIO, SOLVER_LAND_TOL);
+  let half = Math.max(guessSpeed * SOLVER_WARM_START_HALF_WIDTH_RATIO, SOLVER_LAND_TOL);
   let lo = Math.max(minSpeed, guessSpeed - half);
   let hi = Math.min(maxSpeed, guessSpeed + half);
   let loIsShort = false;

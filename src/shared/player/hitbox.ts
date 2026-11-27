@@ -6,6 +6,7 @@ import {
   SWING_MID_MIN_HEIGHT,
   SWING_OVERHEAD_MIN_HEIGHT,
   SWING_PREDICT_LEAD_S,
+  SWING_PREDICT_SLACK_TICKS,
   TIME_EPSILON_S,
 } from '../config';
 import { predictUntil } from '../physics/flight';
@@ -19,9 +20,6 @@ export type HitKind = Exclude<SwingKind, 'serve'>;
 
 /** Player fields the hitbox needs. */
 type HitboxPlayer = Readonly<Pick<PlayerState, 'x' | 'y' | 'z' | 'facing'>>;
-
-/** Extra simulation steps allowed past the lead so the predicate always fires inside `predictUntil` (ticks). */
-const PREDICT_SLACK_STEPS = 2;
 
 /** Hitbox center scratch reused by `detectSwingHit` so it never allocates. */
 const centerScratch: Vec3 = { x: 0, y: 0, z: 0 };
@@ -82,7 +80,7 @@ export function predictSwingKind(
   const result = predictUntil(
     shuttle,
     reachesSwingLead,
-    SWING_PREDICT_LEAD_S + PREDICT_SLACK_STEPS * dtS,
+    SWING_PREDICT_LEAD_S + SWING_PREDICT_SLACK_TICKS * dtS,
     dtS,
     cfg,
   );

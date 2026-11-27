@@ -371,6 +371,9 @@ export const PRACTICE_TOSS_VY = 10.0;
 /** Tolerance when comparing tick-derived times with spec thresholds (s), per DECISIONS D-017. */
 export const TIME_EPSILON_S = 1e-9;
 
+/** Extra simulation steps allowed past the swing lead so the height prediction always fires (ticks), per DECISIONS D-017. */
+export const SWING_PREDICT_SLACK_TICKS = 2;
+
 /** Minimum contact height for a power overhead swing to become SMASH (m), per GAME_SPEC §5.3 and D-004. */
 export const SMASH_MIN_CONTACT_Y = 2.2;
 
@@ -511,6 +514,9 @@ export const SOLVER_MAX_ITER = 60;
 
 /** TWO_POINT angle at or above which an unreachable landing counts as "too high" (deg), per DECISIONS D-016. */
 export const SOLVER_TP_UNREACHABLE_SPLIT_DEG = 45;
+
+/** First bracket half-width around a warm-start speed guess, as a fraction of the guess (dimensionless), per GAME_SPEC §5.5. */
+export const SOLVER_WARM_START_HALF_WIDTH_RATIO = 0.05;
 
 /** Elevation increase per retry when the assist lifts a FIXED_ELEV shot over the net (deg), per GAME_SPEC §5.5. */
 export const ASSIST_ELEV_STEP_DEG = 2;
